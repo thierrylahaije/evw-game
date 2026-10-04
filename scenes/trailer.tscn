@@ -1,0 +1,89 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/trailer_suspension.gd" id="1_suspension"]
+
+[sub_resource type="BoxShape3D" id="LoadBox"]
+size = Vector3(2.5, 2.85, 13.6)
+
+[sub_resource type="BoxShape3D" id="ChassisBox"]
+size = Vector3(2.36, 0.24, 13.6)
+
+[node name="Trailer" type="RigidBody3D"]
+mass = 7000.0
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 1.7, -3.181748)
+collision_layer = 4
+collision_mask = 1
+linear_damp = 0.02
+angular_damp = 0.25
+can_sleep = false
+script = ExtResource("1_suspension")
+
+[node name="TrailerVisuals" type="Node3D" parent="."]
+
+[node name="LoadCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 2.72, -3.181748)
+shape = SubResource("LoadBox")
+
+[node name="ChassisCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 1.14, -3.181748)
+shape = SubResource("ChassisBox")
+
+[node name="KingpinMarker" type="Marker3D" parent="."]
+position = Vector3(0, 1.015, 1.65)
+
+[node name="WheelHardpoints" type="Node3D" parent="."]
+
+[node name="Axle1Left" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(1.08, 0.80, -6.131748)
+
+[node name="Axle1Right" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(-1.08, 0.80, -6.131748)
+
+[node name="Axle2Left" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(1.08, 0.80, -7.431748)
+
+[node name="Axle2Right" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(-1.08, 0.80, -7.431748)
+
+[node name="Axle3Left" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(1.08, 0.80, -8.731749)
+
+[node name="Axle3Right" type="Marker3D" parent="WheelHardpoints"]
+position = Vector3(-1.08, 0.80, -8.731749)
+
+[node name="Markers" type="Node3D" parent="."]
+
+[node name="TrailerAxle1Center" type="Marker3D" parent="Markers"]
+position = Vector3(0, 0.610000014, -6.131748199)
+
+[node name="TrailerAxle2Center" type="Marker3D" parent="Markers"]
+position = Vector3(0, 0.610000014, -7.43174839)
+
+[node name="TrailerAxle3Center" type="Marker3D" parent="Markers"]
+position = Vector3(0, 0.610000014, -8.731748581)
+
+[node name="TrailerAxle1Right" type="Marker3D" parent="Markers"]
+position = Vector3(-1.08000004, 0.61000001, -6.1317482)
+
+[node name="TrailerAxle1Left" type="Marker3D" parent="Markers"]
+position = Vector3(1.08000004, 0.61000001, -6.1317482)
+
+[node name="TrailerAxle2Right" type="Marker3D" parent="Markers"]
+position = Vector3(-1.08000004, 0.61000001, -7.43174839)
+
+[node name="TrailerAxle2Left" type="Marker3D" parent="Markers"]
+position = Vector3(1.08000004, 0.61000001, -7.43174839)
+
+[node name="TrailerAxle3Right" type="Marker3D" parent="Markers"]
+position = Vector3(-1.08000004, 0.61000001, -8.73174858)
+
+[node name="TrailerAxle3Left" type="Marker3D" parent="Markers"]
+position = Vector3(1.08000004, 0.61000001, -8.73174858)
+
+; Wheel node origins are suspension hardpoints, not visual wheel centers.
+; Measured centers: Y=0.61; rest length=0.25.
+; Initial static-sag estimate: 0.61+0.25-9.81/(4*45)=0.8055.
+; Installed-engine settling measured root Y=-0.04855: lower mounts by 0.0485.
+; Final hardpoint Y=0.757 yields root Y approximately 0 on the ground.
+; X/Z match the original wheel markers. Visual wheels remain untouched.

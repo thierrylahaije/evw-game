@@ -1,0 +1,111 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://e-van-wijk-truck-oplegger.glb" id="1_model"]
+
+[ext_resource type="Script" path="res://scripts/truck_controller.gd" id="2_controller"]
+
+[sub_resource type="BoxShape3D" id="ChassisBox"]
+size = Vector3(2.05, 0.55, 5.9)
+
+[sub_resource type="BoxShape3D" id="CabinBox"]
+size = Vector3(2.48, 3.15, 3.1)
+
+[node name="Truck" type="VehicleBody3D"]
+mass = 9000.0
+collision_layer = 2
+collision_mask = 1
+center_of_mass_mode = 1
+center_of_mass = Vector3(0, 0.85, 3.4)
+linear_damp = 0.02
+angular_damp = 0.25
+can_sleep = false
+script = ExtResource("2_controller")
+
+[node name="TractorChassisCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 0.9, 3.7)
+shape = SubResource("ChassisBox")
+
+[node name="TractorCabinCollision" type="CollisionShape3D" parent="."]
+position = Vector3(0, 2.425, 5.6)
+shape = SubResource("CabinBox")
+
+[node name="VisualModel" parent="." instance=ExtResource("1_model")]
+
+[node name="Markers" type="Node3D" parent="."]
+
+[node name="FrontAxleCenter" type="Marker3D" parent="Markers"]
+position = Vector3(0, 0.610000014, 5.150000095)
+
+[node name="RearAxleCenter" type="Marker3D" parent="Markers"]
+position = Vector3(0, 0.610000014, 1.649999976)
+
+[node name="TractorFrontRight" type="Marker3D" parent="Markers"]
+position = Vector3(-1.08000004, 0.61000001, 5.1500001)
+
+[node name="TractorFrontLeft" type="Marker3D" parent="Markers"]
+position = Vector3(1.08000004, 0.61000001, 5.1500001)
+
+[node name="TractorRearRight" type="Marker3D" parent="Markers"]
+position = Vector3(-1.08000004, 0.61000001, 1.64999998)
+
+[node name="TractorRearLeft" type="Marker3D" parent="Markers"]
+position = Vector3(1.08000004, 0.61000001, 1.64999998)
+
+[node name="FrontLeft" type="VehicleWheel3D" parent="."]
+position = Vector3(1.08, 0.757, 5.15)
+use_as_traction = false
+use_as_steering = true
+wheel_radius = 0.6
+wheel_rest_length = 0.25
+wheel_friction_slip = 1.8
+wheel_roll_influence = 0.1
+suspension_travel = 0.2
+suspension_stiffness = 45.0
+suspension_max_force = 60000.0
+damping_compression = 4.5
+damping_relaxation = 5.5
+
+[node name="FrontRight" type="VehicleWheel3D" parent="."]
+position = Vector3(-1.08, 0.757, 5.15)
+use_as_traction = false
+use_as_steering = true
+wheel_radius = 0.6
+wheel_rest_length = 0.25
+wheel_friction_slip = 1.8
+wheel_roll_influence = 0.1
+suspension_travel = 0.2
+suspension_stiffness = 45.0
+suspension_max_force = 60000.0
+damping_compression = 4.5
+damping_relaxation = 5.5
+
+[node name="RearLeft" type="VehicleWheel3D" parent="."]
+position = Vector3(1.08, 0.757, 1.65)
+use_as_traction = true
+use_as_steering = false
+wheel_radius = 0.6
+wheel_rest_length = 0.25
+wheel_friction_slip = 1.8
+wheel_roll_influence = 0.1
+suspension_travel = 0.2
+suspension_stiffness = 45.0
+suspension_max_force = 60000.0
+damping_compression = 4.5
+damping_relaxation = 5.5
+
+[node name="RearRight" type="VehicleWheel3D" parent="."]
+position = Vector3(-1.08, 0.757, 1.65)
+use_as_traction = true
+use_as_steering = false
+wheel_radius = 0.6
+wheel_rest_length = 0.25
+wheel_friction_slip = 1.8
+wheel_roll_influence = 0.1
+suspension_travel = 0.2
+suspension_stiffness = 45.0
+suspension_max_force = 60000.0
+damping_compression = 4.5
+damping_relaxation = 5.5
+
+[node name="FifthWheelMarker" type="Marker3D" parent="Markers"]
+position = Vector3(0, 1.015, 1.65)

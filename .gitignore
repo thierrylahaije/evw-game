@@ -1,0 +1,13 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+server/*.db
+server/*.db-*
+server/__pycache__/
+dist/
+tools/export_templates/
+server/worker/.dev.vars*
+server/worker/.env*
+server/worker/.wrangler/
+__pycache__/
+*.pyc
