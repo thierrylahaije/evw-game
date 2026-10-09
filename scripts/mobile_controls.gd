@@ -10,14 +10,17 @@ const BUTTONS := ["left", "right", "reverse", "gas"]
 var surface: Control
 var fingers: Dictionary = {}
 var held: Dictionary = {}
-var sensor_wait: float = 0.0
 var sensor_status := "idle"
+var sensor_detail := ""
 var calibrated := false
 var pause_menu: CanvasLayer
 var truck: VehicleBody3D
 var last_touch_at: int = -10000
 var auto_paused := false
 var shown_speed_kmh := 0
+var sensor_button_visible := false
+var sensor_button_status := ""
+var sensor_button_size := Vector2.ZERO
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -41,18 +44,21 @@ func _ready() -> void:
 	surface.queue_redraw()
 
 func _process(delta: float) -> void:
+	_reconcile_browser_touches()
 	if Session.control_mode == "tilt":
 		var status_value: Variant = _sensor_call("status()")
-		var current: String = str(status_value) if status_value != null else "unavailable"
-		if current == "waiting":
-			sensor_wait += delta
-			if sensor_wait > 5.0:
-				current = "unavailable"
+		var current: String = str(status_value) if status_value != null else "bridge_missing"
+		var detail_value: Variant = _sensor_call("detail()")
+		var current_detail: String = str(detail_value) if detail_value != null else ""
 		if current != sensor_status:
 			sensor_status = current
-			if current in ["lost", "denied", "unavailable"]:
+			if current in ["lost", "denied", "insecure", "unsupported", "activation", "blocked", "permission_error", "permission_timeout", "no_data", "bridge_missing"]:
 				calibrated = false
 			surface.queue_redraw()
+		if current_detail != sensor_detail:
+			sensor_detail = current_detail
+			surface.queue_redraw()
+	_update_sensor_button()
 	sync_game_pause()
 	if Session.control_mode == "tilt" and sensor_status == "ready" and calibrated and not get_tree().paused:
 		var raw := clampf(float(_sensor_call("steering()")), -1.0, 1.0)
@@ -63,6 +69,32 @@ func _process(delta: float) -> void:
 	if speed_kmh != shown_speed_kmh:
 		shown_speed_kmh = speed_kmh
 		surface.queue_redraw()
+
+func _reconcile_browser_touches() -> void:
+	if not OS.has_feature("web") or fingers.is_empty():
+		return
+	for index in fingers.keys():
+		var active: Variant = JavaScriptBridge.eval("window.EVW_INPUT ? window.EVW_INPUT." + ("mouseIsDown()" if int(index) == -1 else "touchIsActive(%d)" % int(index)) + " : null")
+		if active == false:
+			_release_finger(int(index))
+
+func _update_sensor_button() -> void:
+	if not OS.has_feature("web"):
+		return
+	var show_button: bool = Session.control_mode == "tilt" and not calibrated and not pause_menu.overlay.visible and surface.size.x >= surface.size.y and sensor_status in ["idle", "insecure", "unsupported", "denied", "activation", "blocked", "permission_error", "permission_timeout", "no_data", "lost", "bridge_missing"]
+	if not show_button:
+		if sensor_button_visible:
+			_sensor_call("hideRequest()")
+			sensor_button_visible = false
+		return
+	var rect: Rect2 = _rects()["sensor"]
+	var size := surface.size
+	if sensor_button_visible and sensor_button_status == sensor_status and sensor_button_size == size:
+		return
+	_sensor_call("showRequest(%f,%f,%f,%f)" % [rect.position.x / size.x, rect.position.y / size.y, rect.size.x / size.x, rect.size.y / size.y])
+	sensor_button_visible = true
+	sensor_button_status = sensor_status
+	sensor_button_size = size
 
 func sync_game_pause() -> void:
 	var needs_pause := Session.control_mode != "desktop" and (surface.size.y > surface.size.x or (Session.control_mode == "tilt" and not calibrated))
@@ -80,6 +112,7 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		last_touch_at = Time.get_ticks_msec()
 		if event.pressed:
+			_release_finger(event.index)
 			var key := _hit(event.position)
 			if key != "":
 				fingers[event.index] = key
@@ -101,6 +134,7 @@ func _input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and Time.get_ticks_msec() - last_touch_at > 800:
 		if event.pressed:
+			_release_finger(-1)
 			var key := _hit(event.position)
 			if key != "":
 				fingers[-1] = key
@@ -115,8 +149,6 @@ func _input(event: InputEvent) -> void:
 func _activate(key: String) -> void:
 	if key == "pause":
 		pause_menu.open_pause()
-	elif key == "sensor":
-		_sensor_request()
 	elif key == "calibrate":
 		calibrate()
 	elif key == "fallback":
@@ -153,6 +185,9 @@ func change_mode(mode: String) -> void:
 	Session.control_mode = mode
 	if mode == "tilt":
 		_sensor_reset()
+	else:
+		_sensor_call("hideRequest()")
+		sensor_button_visible = false
 	sync_game_pause()
 	surface.queue_redraw()
 
@@ -167,17 +202,8 @@ func calibrate() -> void:
 func _sensor_reset() -> void:
 	calibrated = false
 	sensor_status = "idle"
-	sensor_wait = 0.0
+	sensor_detail = ""
 	_sensor_call("reset()")
-
-func _sensor_request() -> void:
-	if not OS.has_feature("web"):
-		sensor_status = "unavailable"
-	else:
-		_sensor_call("request()")
-		sensor_status = "waiting"
-		sensor_wait = 0.0
-	surface.queue_redraw()
 
 func _sensor_call(method: String) -> Variant:
 	if not OS.has_feature("web"):
@@ -206,20 +232,19 @@ func _rects() -> Dictionary:
 		"gas": Rect2(Vector2(size.x - margin - width, bottom), Vector2(width, height)),
 	}
 	if Session.control_mode == "tilt" and not calibrated:
-		var box_width := minf(420.0, size.x - 40.0)
+		var box_width := minf(480.0, size.x - 40.0)
 		var x := (size.x - box_width) * 0.5
-		var y := (size.y - 190.0) * 0.5
+		var y := (size.y - 270.0) * 0.5
 		if sensor_status == "ready":
-			result["calibrate"] = Rect2(Vector2(x + 18, y + 110), Vector2(box_width - 36, 56))
-		elif sensor_status in ["denied", "unavailable", "lost"]:
-			result["fallback"] = Rect2(Vector2(x + 18, y + 110), Vector2(box_width - 36, 56))
-		elif sensor_status == "idle":
-			result["sensor"] = Rect2(Vector2(x + 18, y + 110), Vector2(box_width - 36, 56))
+			result["calibrate"] = Rect2(Vector2(x + 18, y + 162), Vector2(box_width - 36, 52))
+		else:
+			result["sensor"] = Rect2(Vector2(x + 18, y + 152), Vector2(box_width - 36, 48))
+			result["fallback"] = Rect2(Vector2(x + 18, y + 210), Vector2(box_width - 36, 48))
 	return result
 
 func _hit(position: Vector2) -> String:
 	var rects := _rects()
-	for key in ["sensor", "calibrate", "fallback", "pause", "left", "right", "reverse", "gas"]:
+	for key in ["calibrate", "fallback", "pause", "left", "right", "reverse", "gas"]:
 		if rects.has(key) and (rects[key] as Rect2).has_point(position):
 			if Session.control_mode == "tilt" and not calibrated and key in BUTTONS:
 				continue
@@ -246,15 +271,31 @@ func _draw_controls() -> void:
 	_draw_button(rects.reverse, "Rem /\nachteruit", held.has("reverse"), 17)
 	_draw_button(rects.gas, "Gas", held.has("gas"), 23)
 	if Session.control_mode == "tilt" and not calibrated:
-		var box := Rect2(Vector2((surface.size.x - minf(420.0, surface.size.x - 40.0)) * 0.5, (surface.size.y - 190.0) * 0.5), Vector2(minf(420.0, surface.size.x - 40.0), 190.0))
+		var box := Rect2(Vector2((surface.size.x - minf(480.0, surface.size.x - 40.0)) * 0.5, (surface.size.y - 270.0) * 0.5), Vector2(minf(480.0, surface.size.x - 40.0), 270.0))
 		surface.draw_rect(box, PANEL, true)
-		var message := "Houd je telefoon prettig vast"
-		if sensor_status == "waiting": message = "Wachten op bewegingssensor…"
-		if sensor_status in ["denied", "unavailable", "lost"]: message = "Sensor niet beschikbaar"
-		_draw_centered(message, Vector2(surface.size.x * 0.5, box.position.y + 45), 19, INK)
-		if rects.has("sensor"): _draw_button(rects.sensor, "Sensor inschakelen", false, 19)
+		var message := _sensor_message()
+		_draw_centered(message, Vector2(surface.size.x * 0.5, box.position.y + 65), 18, INK)
+		if not sensor_detail.is_empty():
+			_draw_centered("Fout: " + sensor_detail, Vector2(surface.size.x * 0.5, box.position.y + 100), 15, GOLD)
 		if rects.has("calibrate"): _draw_button(rects.calibrate, "Stuur recht instellen", false, 19)
 		if rects.has("fallback"): _draw_button(rects.fallback, "Gebruik stuurknoppen", false, 19)
+
+func _sensor_message() -> String:
+	match sensor_status:
+		"idle": return "Houd je telefoon prettig vast"
+		"requesting": return "Wachten op toestemming…"
+		"waiting": return "Wachten op sensorgegevens…"
+		"ready": return "Sensor werkt. Stel het stuur recht in."
+		"insecure": return "Sensor vereist een HTTPS-verbinding"
+		"unsupported": return "Deze browser biedt geen bewegingssensor"
+		"denied": return "Sensortoegang is geweigerd"
+		"activation": return "Toestemming vereist een directe tik"
+		"blocked": return "Browser blokkeert sensortoegang"
+		"permission_error": return "Sensoraanvraag is mislukt"
+		"permission_timeout": return "Geen antwoord op toestemmingsvraag"
+		"no_data": return "Geen sensorgegevens ontvangen"
+		"lost": return "Sensorverbinding onderbroken"
+		_: return "Sensorcode is niet geladen"
 
 func _draw_button(rect: Rect2, label: String, pressed: bool, font_size: int) -> void:
 	surface.draw_rect(rect, GOLD if pressed else PANEL, true)
@@ -269,6 +310,7 @@ func _draw_centered(label: String, point: Vector2, font_size: int, color: Color)
 	surface.draw_string(font, point - Vector2(text_size.x * 0.5, -text_size.y * 0.32), label, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 func _exit_tree() -> void:
+	_sensor_call("hideRequest()")
 	for key in held.keys():
 		Input.action_release(_action(key))
 	Session.tilt_steering = 0.0
