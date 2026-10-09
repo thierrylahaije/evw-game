@@ -47,6 +47,10 @@ func _ready() -> void:
 	hud.offset_top = 20.0
 	hud.offset_right = -24.0
 	hud.offset_bottom = 104.0
+	if Session.control_mode != "desktop":
+		hud.offset_left = -480.0
+		hud.offset_top = 10.0
+		hud.scale = Vector2(0.65, 0.65)
 	hud.add_theme_constant_override("separation", 8)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(hud)

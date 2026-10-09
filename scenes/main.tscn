@@ -22,6 +22,7 @@
 [ext_resource type="Script" uid="uid://dbw7jgqhcpa6l" path="res://scripts/mission_controller.gd" id="102_mission"]
 [ext_resource type="Script" uid="uid://dnc0tqf01dicx" path="res://scripts/round_score.gd" id="103_round_score"]
 [ext_resource type="Script" uid="uid://csstgenqpkapa" path="res://scripts/pause_menu.gd" id="104_pause_menu"]
+[ext_resource type="Script" path="res://scripts/mobile_controls.gd" id="105_mobile_controls"]
 
 [sub_resource type="BoxShape3D" id="GroundBox"]
 size = Vector3(1600, 1, 1600)
@@ -373,6 +374,9 @@ script = ExtResource("103_round_score")
 
 [node name="PauseMenu" type="CanvasLayer" parent="." unique_id=535608609]
 script = ExtResource("104_pause_menu")
+
+[node name="MobileControls" type="CanvasLayer" parent="."]
+script = ExtResource("105_mobile_controls")
 
 [node name="BuildingCollisions" type="Node3D" parent="." unique_id=1214512295]
 

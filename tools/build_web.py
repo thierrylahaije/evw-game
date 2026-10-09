@@ -53,7 +53,9 @@ def main() -> None:
     if html.count(marker) != 1:
         raise RuntimeError("Godot HTML shell changed; could not insert API config")
     html = html.replace(marker, '<script src="api-config.js"></script>\n\t\t' + marker)
+    html = html.replace(marker, '<script src="mobile-sensors.js"></script>\n\t\t' + marker)
     (OUTPUT / "index.html").write_text(html)
+    shutil.copyfile(ROOT / "tools/mobile-sensors.js", OUTPUT / "mobile-sensors.js")
     (OUTPUT / "api-config.js").write_text(
         "window.EVW_API_BASE_URL = " + json.dumps(api_url) + ";\n")
     (OUTPUT / ".nojekyll").touch()
