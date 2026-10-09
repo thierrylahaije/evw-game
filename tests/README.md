@@ -4,7 +4,11 @@ Voor de mobiele bediening controleert `test_mobile_controls.gd` gelijktijdig stu
 
 ```sh
 godot --headless --path . --script res://tests/test_mobile_controls.gd
+node --test tests/test_mobile_browser.mjs
 ```
+
+De Node-test controleert de browserkant: verdwenen aanrakingen, sensortoestemming,
+sensoruitval en het ontbreken van sensorgegevens.
 
 `test_final_routes.gd` doorloopt voor elk van de drie routes de echte missie-
 en docklogica: ophalen, twee afleverpunten, terugdock, botsingtellingen en

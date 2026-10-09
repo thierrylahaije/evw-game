@@ -29,7 +29,7 @@ python3 tools/build_web.py --godot /pad/naar/godot --api-url https://<worker>.wo
 
 `--api-url` is een openbaar HTTPS-adres. Gebruik hier nooit Turso-inloggegevens.
 
-Bij **Nieuwe game** kiest de speler eerst **Computer** of **Telefoon**. Op de telefoon zijn er stuurknoppen of kantelbesturing. De pedalen blijven in beide mobiele modi op het scherm. Voor kantelbesturing moet de speler de bewegingssensor vanuit het spel inschakelen en de comfortabele rechte stand kalibreren. Als de sensor ontbreekt of geweigerd wordt, kan de speler direct naar stuurknoppen wisselen. Tijdens een rit staan **Besturing wijzigen** en **Stuur recht instellen** in het pauzemenu.
+Bij **Nieuwe game** kiest de speler eerst **Computer** of **Telefoon**. Op de telefoon zijn er stuurknoppen of kantelbesturing. De pedalen blijven in beide mobiele modi op het scherm. Voor kantelbesturing schakelt de speler de bewegingssensor in via de browserknop en kalibreert daarna de comfortabele rechte stand. De melding onderscheidt geweigerde toestemming, ontbrekende ondersteuning en uitblijvende sensorgegevens. De speler kan altijd naar stuurknoppen wisselen. Tijdens een rit staan **Besturing wijzigen** en **Stuur recht instellen** in het pauzemenu.
 
 Test kantelbesturing op een echte telefoon via HTTPS. Een desktopbrowser kan de schermindeling en de terugval naar stuurknoppen tonen, maar levert gewoonlijk geen bruikbare bewegingssensorgegevens.
 

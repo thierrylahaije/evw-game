@@ -11,14 +11,20 @@ var name_input: LineEdit
 var start_button: Button
 var current_view := ""
 var selected_mode := ""
+var shell_margin: MarginContainer
+var shell_layout: VBoxContainer
+var shell_title: Label
+var shell_subtitle: Label
 
 func _compact() -> bool:
 	if OS.has_feature("web"):
-		return float(JavaScriptBridge.eval("window.innerHeight")) < 600.0
+		var browser_size: Variant = JavaScriptBridge.eval("Math.min(window.innerWidth, window.innerHeight)")
+		return browser_size != null and float(browser_size) < 600.0
 	return get_viewport_rect().size.y < 600.0 or get_viewport_rect().size.x < 900.0
 
 func _ready() -> void:
 	_build_shell()
+	get_viewport().size_changed.connect(_apply_layout)
 	var score_api := get_node_or_null("/root/ScoreApi")
 	if score_api != null:
 		score_api.leaderboard_received.connect(_on_leaderboard_received)
@@ -51,19 +57,23 @@ func _build_shell() -> void:
 	card.add_theme_stylebox_override("panel", style)
 	center.add_child(card)
 	var margin := MarginContainer.new()
+	shell_margin = margin
 	for side in ["left", "right", "top", "bottom"]:
 		margin.add_theme_constant_override("margin_" + side, 14 if _compact() else 24)
 	card.add_child(margin)
 	var layout := VBoxContainer.new()
+	shell_layout = layout
 	layout.add_theme_constant_override("separation", 7 if _compact() else 14)
 	margin.add_child(layout)
 	var title := Label.new()
+	shell_title = title
 	title.text = "EVW LOGISTICS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 42 if _compact() else 44)
 	title.add_theme_color_override("font_color", ACCENT)
 	layout.add_child(title)
 	var subtitle := Label.new()
+	shell_subtitle = subtitle
 	subtitle.text = "VRACHTRIT  •  DRIE ROUTES  •  ÉÉN DOEL"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 16 if _compact() else 17)
@@ -75,6 +85,23 @@ func _build_shell() -> void:
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 6 if _compact() else 12)
 	layout.add_child(content)
+
+func _apply_layout() -> void:
+	if shell_margin == null:
+		return
+	var compact := _compact()
+	for side in ["left", "right", "top", "bottom"]:
+		shell_margin.add_theme_constant_override("margin_" + side, 14 if compact else 24)
+	shell_layout.add_theme_constant_override("separation", 7 if compact else 14)
+	content.add_theme_constant_override("separation", 6 if compact else 12)
+	shell_title.add_theme_font_size_override("font_size", 42 if compact else 44)
+	shell_subtitle.add_theme_font_size_override("font_size", 16 if compact else 17)
+	for child in content.get_children():
+		if child is Button:
+			child.custom_minimum_size.y = 76 if compact else 46
+			child.add_theme_font_size_override("font_size", 24 if compact else 20)
+	if is_instance_valid(name_input):
+		name_input.custom_minimum_size.y = 72 if compact else 50
 
 func _clear_content() -> void:
 	for child in content.get_children():
@@ -108,7 +135,7 @@ func _space(height: float = 12.0) -> void:
 func _button(label: String, callback: Callable, primary: bool = false) -> Button:
 	var button := Button.new()
 	button.text = label
-	button.custom_minimum_size = Vector2(0, 65 if _compact() else 46)
+	button.custom_minimum_size = Vector2(0, 76 if _compact() else 46)
 	button.add_theme_font_size_override("font_size", 24 if _compact() else 20)
 	var style := StyleBoxFlat.new()
 	style.bg_color = ACCENT if primary else Color("#31485d")
@@ -182,7 +209,7 @@ func _show_name_entry() -> void:
 	name_input.placeholder_text = "Naam van de chauffeur"
 	name_input.max_length = 24
 	name_input.text = Session.player_name
-	name_input.custom_minimum_size.y = 50
+	name_input.custom_minimum_size.y = 72 if _compact() else 50
 	name_input.add_theme_font_size_override("font_size", 22)
 	content.add_child(name_input)
 	start_button = _button("Start rit", _start_game, true)
@@ -192,6 +219,7 @@ func _show_name_entry() -> void:
 	name_input.text_submitted.connect(func(_value: String) -> void:
 		if not start_button.disabled:
 			_start_game())
+	name_input.focus_exited.connect(func() -> void: _apply_layout.call_deferred())
 	_button("Terug", _show_device_choice if selected_mode == "desktop" else _show_mobile_choice)
 	if selected_mode == "desktop":
 		_focus_name_input.call_deferred()
