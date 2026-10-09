@@ -1,6 +1,8 @@
 extends VehicleBody3D
 ## Prototype: +Z forward; +X driver-left. Trailer is a separately jointed passive body.
 
+const Session = preload("res://scripts/game_session.gd")
+
 @export var forward_force: float = 14000.0 # Per driven wheel, in Godot vehicle units.
 @export var reverse_force: float = 9000.0
 @export var service_brake: float = 180.0
@@ -64,5 +66,5 @@ func _physics_process(delta: float) -> void:
 	# Preserve docking steering, limit abrupt high-speed jackknifing with the trailer.
 	var curve_limit := atan(wheelbase * max_lateral_acceleration / maxf(linear_velocity.length_squared(), 0.01))
 	steering_limit = minf(steering_limit, curve_limit)
-	var steer_input := Input.get_axis("vehicle_right", "vehicle_left")
+	var steer_input := Session.tilt_steering if Session.control_mode == "tilt" else Input.get_axis("vehicle_right", "vehicle_left")
 	steering = lerpf(steering, steer_input * steering_limit, 1.0 - exp(-steering_response * delta))

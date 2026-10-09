@@ -12,11 +12,7 @@ func _process(delta: float) -> void:
 
 	var speed_kmh: float = float(vehicle.linear_velocity.length()) * 3.6
 
-	# Lees W rechtstreeks uit als gaspedaal
-	var throttle: float = 0.0
-
-	if Input.is_key_pressed(KEY_W):
-		throttle = 1.0
+	var throttle: float = Input.get_action_strength("vehicle_accelerate")
 
 	# Bepaal versnelling
 	if speed_kmh < 6.0:

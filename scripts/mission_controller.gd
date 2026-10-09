@@ -114,6 +114,9 @@ func _create_hud() -> void:
 	var panel := PanelContainer.new()
 	panel.position = Vector2(24, 20)
 	panel.custom_minimum_size = Vector2(380, 0)
+	if Session.control_mode != "desktop":
+		panel.position = Vector2(18, 76)
+		panel.custom_minimum_size = Vector2(300, 0)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.045, 0.105, 0.16, 0.90)
 	style.border_color = Color(0.78, 0.57, 0.23, 0.85)
@@ -128,7 +131,7 @@ func _create_hud() -> void:
 	margin.add_theme_constant_override("margin_bottom", 13)
 	panel.add_child(margin)
 	objective = Label.new()
-	objective.custom_minimum_size.x = 344
+	objective.custom_minimum_size.x = 264 if Session.control_mode != "desktop" else 344
 	objective.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	objective.add_theme_font_size_override("font_size", 17)
 	objective.add_theme_color_override("font_color", Color("#ffe3a3"))

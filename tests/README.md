@@ -1,5 +1,11 @@
 # Eindcontrole
 
+Voor de mobiele bediening controleert `test_mobile_controls.gd` gelijktijdig sturen en gas geven, het loslaten van één vinger, het vrijgeven van pedalen, het pauzeren bij kalibratie en staande schermstand, en de snelheidswaarde:
+
+```sh
+godot --headless --path . --script res://tests/test_mobile_controls.gd
+```
+
 `test_final_routes.gd` doorloopt voor elk van de drie routes de echte missie-
 en docklogica: ophalen, twee afleverpunten, terugdock, botsingtellingen en
 lokale scoreopslag. De test plaatst de combinatie gecontroleerd op de doelen;

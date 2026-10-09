@@ -13,6 +13,8 @@ static var pending_result: Dictionary = {}
 static var pending_saved: bool = false
 static var score_file: String = SCORE_FILE
 static var next_route_index: int = -1
+static var control_mode: String = "desktop" # desktop, buttons, or tilt
+static var tilt_steering: float = 0.0
 
 static func set_player_name(value: String) -> bool:
 	var cleaned := value.strip_edges().substr(0, 24)

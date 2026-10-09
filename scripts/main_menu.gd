@@ -10,6 +10,12 @@ var content: VBoxContainer
 var name_input: LineEdit
 var start_button: Button
 var current_view := ""
+var selected_mode := ""
+
+func _compact() -> bool:
+	if OS.has_feature("web"):
+		return float(JavaScriptBridge.eval("window.innerHeight")) < 600.0
+	return get_viewport_rect().size.y < 600.0 or get_viewport_rect().size.x < 900.0
 
 func _ready() -> void:
 	_build_shell()
@@ -34,7 +40,9 @@ func _build_shell() -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var card := PanelContainer.new()
-	card.custom_minimum_size = Vector2(760, 550)
+	card.custom_minimum_size = Vector2(0, 0)
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	card.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var style := StyleBoxFlat.new()
 	style.bg_color = CARD
 	style.border_color = Color("#526478")
@@ -44,28 +52,28 @@ func _build_shell() -> void:
 	center.add_child(card)
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 36)
+		margin.add_theme_constant_override("margin_" + side, 14 if _compact() else 24)
 	card.add_child(margin)
 	var layout := VBoxContainer.new()
-	layout.add_theme_constant_override("separation", 14)
+	layout.add_theme_constant_override("separation", 7 if _compact() else 14)
 	margin.add_child(layout)
 	var title := Label.new()
 	title.text = "EVW LOGISTICS"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 44)
+	title.add_theme_font_size_override("font_size", 42 if _compact() else 44)
 	title.add_theme_color_override("font_color", ACCENT)
 	layout.add_child(title)
 	var subtitle := Label.new()
 	subtitle.text = "VRACHTRIT  •  DRIE ROUTES  •  ÉÉN DOEL"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.add_theme_font_size_override("font_size", 17)
+	subtitle.add_theme_font_size_override("font_size", 16 if _compact() else 17)
 	subtitle.add_theme_color_override("font_color", MUTED)
 	layout.add_child(subtitle)
 	var separator := HSeparator.new()
 	layout.add_child(separator)
 	content = VBoxContainer.new()
 	content.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	content.add_theme_constant_override("separation", 12)
+	content.add_theme_constant_override("separation", 6 if _compact() else 12)
 	layout.add_child(content)
 
 func _clear_content() -> void:
@@ -79,7 +87,7 @@ func _heading(value: String) -> void:
 	var label := Label.new()
 	label.text = value
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 29)
+	label.add_theme_font_size_override("font_size", 30 if _compact() else 29)
 	label.add_theme_color_override("font_color", ACCENT)
 	content.add_child(label)
 
@@ -88,7 +96,7 @@ func _text(value: String, size: int = 19) -> void:
 	label.text = value
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_font_size_override("font_size", maxi(size, 21) if _compact() else size)
 	label.add_theme_color_override("font_color", Color.WHITE)
 	content.add_child(label)
 
@@ -100,8 +108,8 @@ func _space(height: float = 12.0) -> void:
 func _button(label: String, callback: Callable, primary: bool = false) -> Button:
 	var button := Button.new()
 	button.text = label
-	button.custom_minimum_size = Vector2(0, 46)
-	button.add_theme_font_size_override("font_size", 20)
+	button.custom_minimum_size = Vector2(0, 65 if _compact() else 46)
+	button.add_theme_font_size_override("font_size", 24 if _compact() else 20)
 	var style := StyleBoxFlat.new()
 	style.bg_color = ACCENT if primary else Color("#31485d")
 	style.set_corner_radius_all(7)
@@ -131,8 +139,36 @@ func _show_home() -> void:
 
 func _show_new_game() -> void:
 	current_view = "new_game"
+	selected_mode = ""
+	_show_device_choice()
+
+func _show_device_choice() -> void:
 	_clear_content()
 	_heading("Nieuwe game")
+	_text("Waarmee speel je?", 20)
+	_space(12)
+	_button("Computer · toetsenbord", func() -> void: _choose_mode("desktop"), true)
+	_button("Telefoon · aanraakscherm", _show_mobile_choice)
+	_button("Terug", _show_home)
+
+func _show_mobile_choice() -> void:
+	_clear_content()
+	_heading("Besturing telefoon")
+	_text("Kies hoe je de truck bestuurt. Gas en rem staan altijd op het scherm.", 18)
+	_space(12)
+	_button("Stuurknoppen", func() -> void: _choose_mode("buttons"), true)
+	_button("Telefoon kantelen", func() -> void: _choose_mode("tilt"))
+	_button("Terug", _show_device_choice)
+
+func _choose_mode(mode: String) -> void:
+	selected_mode = mode
+	_show_name_entry()
+
+func _show_name_entry() -> void:
+	_clear_content()
+	_heading("Nieuwe game")
+	var mode_label := "Computer" if selected_mode == "desktop" else ("Stuurknoppen" if selected_mode == "buttons" else "Telefoon kantelen")
+	_text("Besturing: " + mode_label, 17)
 	var shared_scores := get_node_or_null("/root/SharedScores")
 	var score_api := get_node_or_null("/root/ScoreApi")
 	var destination := "."
@@ -156,16 +192,19 @@ func _show_new_game() -> void:
 	name_input.text_submitted.connect(func(_value: String) -> void:
 		if not start_button.disabled:
 			_start_game())
-	_button("Terug", _show_home)
-	_focus_name_input.call_deferred()
+	_button("Terug", _show_device_choice if selected_mode == "desktop" else _show_mobile_choice)
+	if selected_mode == "desktop":
+		_focus_name_input.call_deferred()
 
 func _focus_name_input() -> void:
 	if is_instance_valid(name_input) and name_input.is_inside_tree():
 		name_input.grab_focus()
 
 func _start_game() -> void:
-	if name_input == null or not Session.set_player_name(name_input.text):
+	if selected_mode.is_empty() or name_input == null or not Session.set_player_name(name_input.text):
 		return
+	Session.control_mode = selected_mode
+	Session.tilt_steering = 0.0
 	var score_api := get_node_or_null("/root/ScoreApi")
 	if score_api != null:
 		score_api.register_player(Session.player_name)
