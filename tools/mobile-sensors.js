@@ -87,8 +87,8 @@
     Object.assign(requestButton.style, {
       position: "fixed", zIndex: "20", display: "none", boxSizing: "border-box",
       border: "2px solid #f7c843", borderRadius: "7px", background: "#152535",
-      color: "#eff8ff", font: "19px sans-serif", touchAction: "manipulation",
-      cursor: "pointer",
+      color: "#eff8ff", font: "19px sans-serif", touchAction: "none",
+      userSelect: "none", WebkitUserSelect: "none", cursor: "pointer",
     });
     requestButton.addEventListener("click", request);
     document.body.appendChild(requestButton);
@@ -114,9 +114,13 @@
       if (requestButton) requestButton.style.display = "none";
     },
     calibrate: function () {
-      if (status() !== "ready" || reading === null) return false;
+      if (status() !== "ready" || reading === null) {
+        detail = "Geen sensormeting beschikbaar";
+        state = "lost";
+        return 0;
+      }
       neutral = reading;
-      return true;
+      return 1;
     },
     steering: function () {
       if (neutral === null || status() !== "ready") return 0;

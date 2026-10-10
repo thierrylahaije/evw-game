@@ -4,6 +4,36 @@
   const commands = [];
   const driving = new Set(["left", "right", "reverse", "gas"]);
   const actions = new Set(["pause", "calibrate", "fallback"]);
+  const canvas = document.getElementById("canvas");
+  let keyboardFocused = false;
+  let keyboardRecovering = false;
+  let canvasSize = { width: 0, height: 0 };
+
+  // With Godot's canvas resize policy set to None, a keyboard viewport change
+  // cannot shrink the game into a tiny strip above the iOS keyboard.
+  function resizeCanvas() {
+    if (!canvas || keyboardFocused) return;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    if (keyboardRecovering && Math.abs(width - canvasSize.width) < 100
+        && height < canvasSize.height * 0.75) return;
+    keyboardRecovering = false;
+    if (width === canvasSize.width && height === canvasSize.height) return;
+    const scale = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    canvasSize = { width, height };
+  }
+
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("orientationchange", () => {
+    keyboardFocused = false;
+    keyboardRecovering = false;
+    resizeCanvas();
+  });
 
   function releaseAll() {
     pointers.clear();
@@ -75,7 +105,6 @@
 
   window.EVW_INPUT = {
     setButton: function (key, x, y, width, height) {
-      const canvas = document.getElementById("canvas");
       if (!canvas) return;
       const button = buttonFor(key);
       const bounds = canvas.getBoundingClientRect();
@@ -93,22 +122,44 @@
     takeCommand: () => commands.shift() || "",
   };
 
-  // Godot's experimental web keyboard focuses a hidden full-canvas input.
-  // Some iOS browsers leave the canvas at the keyboard-sized viewport after
-  // that input blurs. Repeat resize notification as the keyboard animates away.
-  let keyboardWasOpen = false;
+  // Present Godot's real text input above the software keyboard so the name
+  // stays readable while its input events still reach the LineEdit.
+  const keyboardPanel = document.createElement("div");
+  keyboardPanel.id = "evw-keyboard-panel";
+  const keyboardLabel = document.createElement("span");
+  keyboardLabel.textContent = "Naam van de chauffeur";
+  const doneButton = document.createElement("button");
+  doneButton.type = "button";
+  doneButton.textContent = "Gereed";
+  doneButton.addEventListener("click", () => {
+    const field = document.querySelector(".evw-keyboard-field");
+    if (field) field.blur();
+  });
+  keyboardPanel.appendChild(keyboardLabel);
+  keyboardPanel.appendChild(doneButton);
+  document.body.appendChild(keyboardPanel);
+
   function isGodotKeyboard(element) {
     return element && ["INPUT", "TEXTAREA"].includes(element.tagName)
       && element.style.zIndex === "-1";
   }
   document.addEventListener("focusin", (event) => {
-    if (isGodotKeyboard(event.target)) keyboardWasOpen = true;
+    if (!isGodotKeyboard(event.target)) return;
+    keyboardFocused = true;
+    keyboardRecovering = false;
+    event.target.classList.add("evw-keyboard-field");
+    keyboardPanel.style.display = "block";
   }, true);
   document.addEventListener("focusout", (event) => {
     if (!isGodotKeyboard(event.target)) return;
+    keyboardFocused = false;
+    keyboardRecovering = true;
+    event.target.classList.remove("evw-keyboard-field");
+    keyboardPanel.style.display = "none";
     for (const delay of [0, 150, 400, 800]) {
       setTimeout(() => {
         if (document.activeElement && isGodotKeyboard(document.activeElement)) return;
+        resizeCanvas();
         window.scrollTo(0, 0);
         window.dispatchEvent(new Event("resize"));
       }, delay);
@@ -116,10 +167,26 @@
   }, true);
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", () => {
-      if (keyboardWasOpen && !isGodotKeyboard(document.activeElement)) {
+      if (keyboardRecovering && !isGodotKeyboard(document.activeElement)) {
+        resizeCanvas();
         window.dispatchEvent(new Event("resize"));
-        keyboardWasOpen = false;
       }
     });
   }
+
+  function isEditable(element) {
+    return element && (element.isContentEditable || ["INPUT", "TEXTAREA"].includes(element.tagName));
+  }
+  document.addEventListener("selectstart", (event) => {
+    if (!isEditable(event.target)) event.preventDefault();
+  });
+  document.addEventListener("gesturestart", (event) => {
+    if (!isEditable(event.target)) event.preventDefault();
+  }, { passive: false });
+  document.addEventListener("dblclick", (event) => {
+    if (!isEditable(event.target)) event.preventDefault();
+  });
+  document.addEventListener("contextmenu", (event) => {
+    if (!isEditable(event.target)) event.preventDefault();
+  });
 })();

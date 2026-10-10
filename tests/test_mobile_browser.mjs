@@ -19,15 +19,23 @@ function browser(permission, active = true) {
   const window = target();
   const document = target();
   const buttons = [];
-  const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 400 }) };
+  const canvas = {
+    style: {}, width: 0, height: 0,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 400 }),
+  };
   document.hidden = false;
   document.activeElement = null;
   document.elementFromPoint = () => null;
+  document.querySelector = (selector) => buttons.find((button) => selector === ".evw-keyboard-field" && button.classes?.has("evw-keyboard-field")) || null;
   document.getElementById = (id) => id === "canvas" ? canvas : null;
   document.createElement = () => {
     const button = target();
     button.style = {};
     button.dataset = {};
+    button.classes = new Set();
+    button.classList = { add: (name) => button.classes.add(name), remove: (name) => button.classes.delete(name) };
+    button.appendChild = () => {};
+    button.blur = () => {};
     button.setAttribute = () => {};
     button.setPointerCapture = () => {};
     buttons.push(button);
@@ -35,10 +43,13 @@ function browser(permission, active = true) {
   };
   document.body = { appendChild: () => {} };
   window.isSecureContext = true;
+  window.innerWidth = 800;
+  window.innerHeight = 400;
+  window.devicePixelRatio = 2;
   window.DeviceOrientationEvent = { requestPermission: permission };
   window.scrollTo = () => {};
   let resizeCount = 0;
-  window.dispatchEvent = () => { resizeCount += 1; };
+  window.dispatchEvent = (event) => { resizeCount += 1; window.dispatch(event.type, event); };
   let now = 1000;
   const timers = [];
   const context = {
@@ -49,12 +60,14 @@ function browser(permission, active = true) {
   };
   runInNewContext(readFileSync(new URL("../tools/mobile-browser.js", import.meta.url), "utf8"), context);
   runInNewContext(readFileSync(new URL("../tools/mobile-sensors.js", import.meta.url), "utf8"), context);
-  return { window, document, buttons, setNow: (value) => { now = value; }, runTimers: () => {
+  return { window, document, buttons, canvas, setNow: (value) => { now = value; }, runTimers: () => {
     for (const callback of timers.splice(0)) callback();
   }, resizeCount: () => resizeCount };
 }
 
 const env = browser(() => Promise.resolve("granted"));
+assert.equal(env.canvas.width, 1600, "canvas starts at device pixel width");
+assert.equal(env.canvas.height, 800, "canvas starts at device pixel height");
 env.window.EVW_INPUT.setButton("gas", 0.75, 0.5, 0.2, 0.3);
 env.window.EVW_INPUT.setButton("left", 0.05, 0.5, 0.2, 0.3);
 env.window.EVW_INPUT.setButton("calibrate", 0.25, 0.3, 0.5, 0.1);
@@ -77,11 +90,33 @@ assert.equal(env.window.EVW_INPUT.takeCommand(), "calibrate", "calibration butto
 gas.dispatch("pointerdown", { pointerId: 12, preventDefault() {} });
 env.window.dispatch("blur");
 assert.equal(env.window.EVW_INPUT.pressed("gas"), 0, "blur releases controls");
-const keyboard = { tagName: "INPUT", style: { zIndex: "-1" } };
+const keyboard = env.buttons.find((button) => button.tagName === "INPUT") || env.document.createElement("input");
+keyboard.tagName = "INPUT";
+keyboard.style.zIndex = "-1";
+env.window.innerHeight = 140;
 env.document.dispatch("focusin", { target: keyboard });
+env.window.dispatch("resize");
+assert.equal(env.canvas.height, 800, "keyboard does not shrink canvas");
+assert.equal(keyboard.classes.has("evw-keyboard-field"), true, "name field becomes visible");
+const keyboardPanel = env.buttons.find((button) => button.id === "evw-keyboard-panel");
+assert.equal(keyboardPanel.style.display, "block", "name panel appears above keyboard");
 env.document.dispatch("focusout", { target: keyboard });
 env.runTimers();
+assert.equal(env.canvas.height, 800, "canvas stays full-size while keyboard closes");
 assert.equal(env.resizeCount(), 4, "keyboard close retries canvas resize");
+assert.equal(keyboardPanel.style.display, "none", "name panel closes with keyboard");
+env.window.innerHeight = 400;
+env.window.dispatch("resize");
+assert.equal(keyboard.classes.has("evw-keyboard-field"), false);
+let prevented = 0;
+const block = { target: env.canvas, preventDefault: () => { prevented += 1; } };
+env.document.dispatch("selectstart", block);
+env.document.dispatch("gesturestart", block);
+env.document.dispatch("dblclick", block);
+env.document.dispatch("contextmenu", block);
+assert.equal(prevented, 4, "game surface blocks selection and zoom gestures");
+env.document.dispatch("selectstart", { target: keyboard, preventDefault: () => { prevented += 1; } });
+assert.equal(prevented, 4, "typing field still permits text editing");
 
 env.window.EVW_TILT.showRequest(0.25, 0.2, 0.5, 0.1);
 const sensorButton = env.buttons.find((button) => button.textContent === "Sensor inschakelen");
@@ -91,17 +126,19 @@ await Promise.resolve();
 assert.equal(env.window.EVW_TILT.status(), "waiting");
 env.window.dispatch("deviceorientation", { beta: 8, gamma: 2 });
 assert.equal(env.window.EVW_TILT.status(), "ready");
-assert.equal(env.window.EVW_TILT.calibrate(), true);
+assert.equal(env.window.EVW_TILT.calibrate(), 1);
 env.setNow(4000);
 assert.equal(env.window.EVW_TILT.status(), "ready", "stationary phone keeps sensor active");
-assert.equal(env.window.EVW_TILT.calibrate(), true, "stationary sensor remains calibratable");
+assert.equal(env.window.EVW_TILT.calibrate(), 1, "stationary sensor remains calibratable");
 env.document.hidden = true;
 env.document.dispatch("visibilitychange");
 assert.equal(env.window.EVW_TILT.status(), "lost", "backgrounding invalidates sensor reading");
+assert.equal(env.window.EVW_TILT.calibrate(), 0, "calibration needs a sensor reading");
+assert.equal(env.window.EVW_TILT.detail(), "Geen sensormeting beschikbaar", "failure explains retry");
 
 const denied = browser(() => Promise.reject({ name: "NotAllowedError" }));
 denied.window.EVW_TILT.showRequest(0, 0, 1, 1);
-denied.buttons[0].dispatch("click");
+denied.buttons.find((button) => button.textContent === "Sensor inschakelen").dispatch("click");
 await Promise.resolve();
 await Promise.resolve();
 assert.equal(denied.window.EVW_TILT.status(), "blocked");
@@ -109,21 +146,21 @@ assert.equal(denied.window.EVW_TILT.detail(), "NotAllowedError");
 
 const inactive = browser(() => Promise.reject({ name: "NotAllowedError" }), false);
 inactive.window.EVW_TILT.showRequest(0, 0, 1, 1);
-inactive.buttons[0].dispatch("click");
+inactive.buttons.find((button) => button.textContent === "Sensor inschakelen").dispatch("click");
 await Promise.resolve();
 await Promise.resolve();
 assert.equal(inactive.window.EVW_TILT.status(), "activation");
 
 const noData = browser(() => Promise.resolve("granted"));
 noData.window.EVW_TILT.showRequest(0, 0, 1, 1);
-noData.buttons[0].dispatch("click");
+noData.buttons.find((button) => button.textContent === "Sensor inschakelen").dispatch("click");
 await Promise.resolve();
 noData.setNow(7000);
 assert.equal(noData.window.EVW_TILT.status(), "no_data");
 
 const noAnswer = browser(() => new Promise(() => {}));
 noAnswer.window.EVW_TILT.showRequest(0, 0, 1, 1);
-noAnswer.buttons[0].dispatch("click");
+noAnswer.buttons.find((button) => button.textContent === "Sensor inschakelen").dispatch("click");
 noAnswer.setNow(10000);
 assert.equal(noAnswer.window.EVW_TILT.status(), "permission_timeout");
 
