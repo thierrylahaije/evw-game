@@ -22,11 +22,14 @@ function browser(permission, active = true) {
   const canvas = { getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 400 }) };
   document.hidden = false;
   document.activeElement = null;
+  document.elementFromPoint = () => null;
   document.getElementById = (id) => id === "canvas" ? canvas : null;
   document.createElement = () => {
     const button = target();
     button.style = {};
+    button.dataset = {};
     button.setAttribute = () => {};
+    button.setPointerCapture = () => {};
     buttons.push(button);
     return button;
   };
@@ -52,14 +55,28 @@ function browser(permission, active = true) {
 }
 
 const env = browser(() => Promise.resolve("granted"));
-env.document.dispatch("touchstart", { touches: [{ identifier: 3 }, { identifier: 9 }] });
-assert.equal(env.window.EVW_INPUT.touchIsActive(3), true);
-assert.equal(env.window.EVW_INPUT.touchIsActive(9), true);
-env.document.dispatch("touchend", { touches: [{ identifier: 3 }] });
-assert.equal(env.window.EVW_INPUT.touchIsActive(9), false, "pedal released outside canvas");
-assert.equal(env.window.EVW_INPUT.touchIsActive(3), true, "other finger stays pressed");
-env.document.dispatch("touchcancel", { touches: [] });
-assert.equal(env.window.EVW_INPUT.touchIsActive(3), false);
+env.window.EVW_INPUT.setButton("gas", 0.75, 0.5, 0.2, 0.3);
+env.window.EVW_INPUT.setButton("left", 0.05, 0.5, 0.2, 0.3);
+env.window.EVW_INPUT.setButton("calibrate", 0.25, 0.3, 0.5, 0.1);
+const gas = env.buttons.find((button) => button.dataset.evwControl === "gas");
+const left = env.buttons.find((button) => button.dataset.evwControl === "left");
+const calibrate = env.buttons.find((button) => button.dataset.evwControl === "calibrate");
+env.document.elementFromPoint = (x) => x > 500 ? gas : x < 200 ? left : calibrate;
+gas.dispatch("pointerdown", { pointerId: 3, preventDefault() {} });
+left.dispatch("pointerdown", { pointerId: 9, preventDefault() {} });
+assert.equal(env.window.EVW_INPUT.pressed("gas"), 1);
+assert.equal(env.window.EVW_INPUT.pressed("left"), 1);
+env.document.dispatch("pointerup", { pointerId: 3, clientX: 600, clientY: 300 });
+assert.equal(env.window.EVW_INPUT.pressed("gas"), 0, "pedal releases on pointerup");
+assert.equal(env.window.EVW_INPUT.pressed("left"), 1, "other finger stays pressed");
+env.document.dispatch("pointercancel", { pointerId: 9 });
+assert.equal(env.window.EVW_INPUT.pressed("left"), 0, "steering releases on pointercancel");
+calibrate.dispatch("pointerdown", { pointerId: 11, preventDefault() {} });
+env.document.dispatch("pointerup", { pointerId: 11, clientX: 400, clientY: 150 });
+assert.equal(env.window.EVW_INPUT.takeCommand(), "calibrate", "calibration button queues a tap");
+gas.dispatch("pointerdown", { pointerId: 12, preventDefault() {} });
+env.window.dispatch("blur");
+assert.equal(env.window.EVW_INPUT.pressed("gas"), 0, "blur releases controls");
 const keyboard = { tagName: "INPUT", style: { zIndex: "-1" } };
 env.document.dispatch("focusin", { target: keyboard });
 env.document.dispatch("focusout", { target: keyboard });
@@ -67,15 +84,20 @@ env.runTimers();
 assert.equal(env.resizeCount(), 4, "keyboard close retries canvas resize");
 
 env.window.EVW_TILT.showRequest(0.25, 0.2, 0.5, 0.1);
-assert.equal(env.buttons[0].style.left, "200px");
-env.buttons[0].dispatch("click");
+const sensorButton = env.buttons.find((button) => button.textContent === "Sensor inschakelen");
+assert.equal(sensorButton.style.left, "200px");
+sensorButton.dispatch("click");
 await Promise.resolve();
 assert.equal(env.window.EVW_TILT.status(), "waiting");
 env.window.dispatch("deviceorientation", { beta: 8, gamma: 2 });
 assert.equal(env.window.EVW_TILT.status(), "ready");
 assert.equal(env.window.EVW_TILT.calibrate(), true);
 env.setNow(4000);
-assert.equal(env.window.EVW_TILT.status(), "lost");
+assert.equal(env.window.EVW_TILT.status(), "ready", "stationary phone keeps sensor active");
+assert.equal(env.window.EVW_TILT.calibrate(), true, "stationary sensor remains calibratable");
+env.document.hidden = true;
+env.document.dispatch("visibilitychange");
+assert.equal(env.window.EVW_TILT.status(), "lost", "backgrounding invalidates sensor reading");
 
 const denied = browser(() => Promise.reject({ name: "NotAllowedError" }));
 denied.window.EVW_TILT.showRequest(0, 0, 1, 1);

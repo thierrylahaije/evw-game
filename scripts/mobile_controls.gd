@@ -21,6 +21,7 @@ var shown_speed_kmh := 0
 var sensor_button_visible := false
 var sensor_button_status := ""
 var sensor_button_size := Vector2.ZERO
+var browser_controls_signature := ""
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -44,7 +45,6 @@ func _ready() -> void:
 	surface.queue_redraw()
 
 func _process(delta: float) -> void:
-	_reconcile_browser_touches()
 	if Session.control_mode == "tilt":
 		var status_value: Variant = _sensor_call("status()")
 		var current: String = str(status_value) if status_value != null else "bridge_missing"
@@ -59,6 +59,8 @@ func _process(delta: float) -> void:
 			sensor_detail = current_detail
 			surface.queue_redraw()
 	_update_sensor_button()
+	_update_browser_controls()
+	_sync_browser_controls()
 	sync_game_pause()
 	if Session.control_mode == "tilt" and sensor_status == "ready" and calibrated and not get_tree().paused:
 		var raw := clampf(float(_sensor_call("steering()")), -1.0, 1.0)
@@ -70,13 +72,48 @@ func _process(delta: float) -> void:
 		shown_speed_kmh = speed_kmh
 		surface.queue_redraw()
 
-func _reconcile_browser_touches() -> void:
-	if not OS.has_feature("web") or fingers.is_empty():
+func _update_browser_controls() -> void:
+	if not OS.has_feature("web"):
 		return
-	for index in fingers.keys():
-		var active: Variant = JavaScriptBridge.eval("window.EVW_INPUT ? window.EVW_INPUT." + ("mouseIsDown()" if int(index) == -1 else "touchIsActive(%d)" % int(index)) + " : null")
-		if active == false:
-			_release_finger(int(index))
+	var keys: Array[String] = []
+	if Session.control_mode != "desktop" and not pause_menu.overlay.visible and surface.size.x >= surface.size.y:
+		keys.append("pause")
+		if Session.control_mode == "buttons":
+			keys.append_array(BUTTONS)
+		elif calibrated:
+			keys.append_array(["reverse", "gas"])
+		elif sensor_status == "ready":
+			keys.append("calibrate")
+		else:
+			keys.append("fallback")
+	var signature := "%s|%s|%s" % [",".join(keys), surface.size, sensor_status if Session.control_mode == "tilt" else ""]
+	if signature == browser_controls_signature:
+		return
+	browser_controls_signature = signature
+	_browser_input_call("hideAll()")
+	if keys.is_empty():
+		return
+	var rects := _rects()
+	for key in keys:
+		var rect: Rect2 = rects[key]
+		_browser_input_call("setButton('%s',%f,%f,%f,%f)" % [key, rect.position.x / surface.size.x, rect.position.y / surface.size.y, rect.size.x / surface.size.x, rect.size.y / surface.size.y])
+
+func _sync_browser_controls() -> void:
+	if not OS.has_feature("web"):
+		return
+	for key in BUTTONS:
+		var pressed: bool = _browser_input_call("pressed('%s')" % key) == 1
+		if pressed and not held.has(key):
+			held[key] = 1
+			Input.action_press(_action(key))
+			surface.queue_redraw()
+		elif not pressed and held.has(key):
+			held.erase(key)
+			Input.action_release(_action(key))
+			surface.queue_redraw()
+	var command: Variant = _browser_input_call("takeCommand()")
+	if command != null and str(command) != "":
+		_activate(str(command))
 
 func _update_sensor_button() -> void:
 	if not OS.has_feature("web"):
@@ -105,6 +142,8 @@ func sync_game_pause() -> void:
 		get_tree().paused = auto_paused
 
 func _input(event: InputEvent) -> void:
+	if OS.has_feature("web"):
+		return
 	if Session.control_mode == "desktop" or pause_menu.overlay.visible:
 		return
 	if surface.size.y > surface.size.x:
@@ -173,6 +212,9 @@ func _release_finger(index: int) -> void:
 	surface.queue_redraw()
 
 func release_all() -> void:
+	if OS.has_feature("web"):
+		_browser_input_call("hideAll()")
+		browser_controls_signature = ""
 	for key in held.keys():
 		Input.action_release(_action(key))
 	held.clear()
@@ -209,6 +251,11 @@ func _sensor_call(method: String) -> Variant:
 	if not OS.has_feature("web"):
 		return null
 	return JavaScriptBridge.eval("window.EVW_TILT ? window.EVW_TILT." + method + " : null")
+
+func _browser_input_call(method: String) -> Variant:
+	if not OS.has_feature("web"):
+		return null
+	return JavaScriptBridge.eval("window.EVW_INPUT ? window.EVW_INPUT." + method + " : null")
 
 func _action(key: String) -> String:
 	match key:
@@ -311,6 +358,7 @@ func _draw_centered(label: String, point: Vector2, font_size: int, color: Color)
 
 func _exit_tree() -> void:
 	_sensor_call("hideRequest()")
+	_browser_input_call("hideAll()")
 	for key in held.keys():
 		Input.action_release(_action(key))
 	Session.tilt_steering = 0.0
