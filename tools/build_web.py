@@ -55,7 +55,59 @@ def main() -> None:
     html = html.replace(marker, '<script src="api-config.js"></script>\n\t\t' + marker)
     html = html.replace(marker, '<script src="mobile-sensors.js"></script>\n\t\t' + marker)
     html = html.replace(marker, '<script src="mobile-browser.js"></script>\n\t\t' + marker)
-    html = html.replace('</head>', '<style>body > input, body > textarea { font-size: 16px; }</style>\n\t</head>')
+    mobile_style = """<style>
+html, body, #canvas, button {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    overscroll-behavior: none;
+}
+body > input, body > textarea { font-size: 20px; }
+body > .evw-keyboard-field {
+    position: fixed !important;
+    z-index: 31 !important;
+    left: 24px !important;
+    top: 52px !important;
+    width: calc(100vw - 48px) !important;
+    max-width: none !important;
+    height: 42px !important;
+    box-sizing: border-box !important;
+    padding: 5px 10px !important;
+    border: 2px solid #f7c843 !important;
+    border-radius: 6px !important;
+    background: #101c2a !important;
+    color: #eff8ff !important;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+}
+#evw-keyboard-panel {
+    position: fixed;
+    z-index: 30;
+    left: 8px;
+    right: 8px;
+    top: 8px;
+    height: 96px;
+    box-sizing: border-box;
+    padding: 10px 16px;
+    background: #1b2b3b;
+    border: 2px solid #f7c843;
+    border-radius: 8px;
+    color: #eff8ff;
+    font: 18px sans-serif;
+    display: none;
+}
+#evw-keyboard-panel button {
+    float: right;
+    border: 0;
+    border-radius: 4px;
+    background: #f7c843;
+    color: #101c2a;
+    font: 16px sans-serif;
+    padding: 4px 12px;
+    touch-action: manipulation;
+}
+</style>"""
+    html = html.replace('</head>', mobile_style + '\n\t</head>')
     (OUTPUT / "index.html").write_text(html)
     shutil.copyfile(ROOT / "tools/mobile-sensors.js", OUTPUT / "mobile-sensors.js")
     shutil.copyfile(ROOT / "tools/mobile-browser.js", OUTPUT / "mobile-browser.js")

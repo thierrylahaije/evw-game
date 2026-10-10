@@ -236,7 +236,7 @@ func change_mode(mode: String) -> void:
 func calibrate() -> void:
 	if Session.control_mode != "tilt":
 		return
-	calibrated = _sensor_call("calibrate()") == true
+	calibrated = _sensor_call("calibrate()") == 1
 	Session.tilt_steering = 0.0
 	sync_game_pause()
 	surface.queue_redraw()
