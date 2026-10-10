@@ -1,7 +1,6 @@
 (function () {
   let reading = null;
   let neutral = null;
-  let lastReadingAt = 0;
   let waitingSince = 0;
   let requestingSince = 0;
   let listening = false;
@@ -19,7 +18,6 @@
     if (typeof event.beta !== "number" || typeof event.gamma !== "number") return;
     const radians = screenAngle() * Math.PI / 180;
     reading = event.gamma * Math.cos(radians) + event.beta * Math.sin(radians);
-    lastReadingAt = Date.now();
     state = "ready";
     detail = "";
   }
@@ -69,9 +67,16 @@
   function status() {
     if (state === "requesting" && Date.now() - requestingSince > 8000) return "permission_timeout";
     if (state === "waiting" && Date.now() - waitingSince > 5000) return "no_data";
-    if (state === "ready" && Date.now() - lastReadingAt > 2000) return "lost";
     return state;
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && state === "ready") {
+      reading = null;
+      neutral = null;
+      state = "lost";
+    }
+  });
 
   function ensureRequestButton() {
     if (requestButton) return requestButton;
@@ -109,7 +114,7 @@
       if (requestButton) requestButton.style.display = "none";
     },
     calibrate: function () {
-      if (status() !== "ready") return false;
+      if (status() !== "ready" || reading === null) return false;
       neutral = reading;
       return true;
     },
