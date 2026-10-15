@@ -21,7 +21,7 @@ func run_checks() -> void:
 	var api = root.get_node("ScoreApi")
 	api.base_url = ""
 	Session.set_player_name("Online Test")
-	var result := Session.finish_round(2, 101.5, 1, 2, 1)
+	var result := Session.finish_round(2, 101.5, 1, 2, 1, 2)
 	check(Session.pending_saved, "Round is saved locally before upload")
 	check(Session.pending_uploads().size() == 1, "Offline round remains queued")
 	Session.pending_result = {} # Mimic leaving the result screen or restarting the game.

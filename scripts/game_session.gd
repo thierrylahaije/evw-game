@@ -7,6 +7,7 @@ const POINTS_PER_SECOND := 2
 const BUILDING_PENALTY := 400
 const CAR_PENALTY := 700
 const RED_LIGHT_PENALTY := 500
+const TRAFFIC_FINE_PENALTY := 500
 
 static var player_name: String = ""
 static var pending_result: Dictionary = {}
@@ -26,12 +27,12 @@ static func set_player_name(value: String) -> bool:
 static func charging_pole_prank_enabled(value: String) -> bool:
 	return value.strip_edges().to_lower().contains("ab")
 
-static func calculate_score(seconds: float, building_hits: int, car_hits: int, red_light_hits: int = 0) -> int:
+static func calculate_score(seconds: float, building_hits: int, car_hits: int, red_light_hits: int = 0, traffic_fines: int = 0) -> int:
 	return maxi(0, BASE_SCORE - ceili(seconds) * POINTS_PER_SECOND \
 		- building_hits * BUILDING_PENALTY - car_hits * CAR_PENALTY \
-		- red_light_hits * RED_LIGHT_PENALTY)
+		- red_light_hits * RED_LIGHT_PENALTY - traffic_fines * TRAFFIC_FINE_PENALTY)
 
-static func finish_round(route_index: int, seconds: float, building_hits: int, car_hits: int, red_light_hits: int = 0) -> Dictionary:
+static func finish_round(route_index: int, seconds: float, building_hits: int, car_hits: int, red_light_hits: int = 0, traffic_fines: int = 0) -> Dictionary:
 	var duration := maxf(0.01, snappedf(seconds, 0.01))
 	pending_result = {
 		"name": player_name if not player_name.is_empty() else "Speler",
@@ -41,7 +42,8 @@ static func finish_round(route_index: int, seconds: float, building_hits: int, c
 		"building_hits": building_hits,
 		"car_hits": car_hits,
 		"red_light_hits": red_light_hits,
-		"score": calculate_score(duration, building_hits, car_hits, red_light_hits),
+		"traffic_fines": traffic_fines,
+		"score": calculate_score(duration, building_hits, car_hits, red_light_hits, traffic_fines),
 		"played_at": Time.get_datetime_string_from_system(),
 		"uploaded": false,
 		"shared_saved": false,

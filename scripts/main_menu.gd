@@ -337,6 +337,7 @@ func _show_result() -> void:
 		ceili(float(result.time_seconds)) * Session.POINTS_PER_SECOND], 22)
 	_text("Gebouwen/muren: %d × −%d punten" % [int(result.building_hits), Session.BUILDING_PENALTY])
 	_text("Auto's: %d × −%d punten" % [int(result.car_hits), Session.CAR_PENALTY])
+	_text("Verkeersboetes: %d × −%d punten" % [int(result.get("traffic_fines", 0)), Session.TRAFFIC_FINE_PENALTY])
 	_text("Door rood: %d × −%d punten" % [int(result.get("red_light_hits", 0)), Session.RED_LIGHT_PENALTY])
 	_text("Eindscore: %d" % int(result.score), 30)
 	if not Session.pending_saved:

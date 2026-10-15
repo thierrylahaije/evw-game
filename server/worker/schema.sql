@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS rounds (
     building_hits INTEGER NOT NULL,
     car_hits INTEGER NOT NULL,
     red_light_hits INTEGER NOT NULL,
+    traffic_fines INTEGER NOT NULL DEFAULT 0,
     score INTEGER NOT NULL,
     completed_at TEXT NOT NULL
 );

@@ -6,6 +6,7 @@ function fakeDatabase() {
   const players = new Map();
   const rounds = new Map();
   const query = async (_env, sql, args) => {
+    if (sql.startsWith('PRAGMA table_info(rounds)')) return [{ name: 'traffic_fines' }];
     if (sql.startsWith('INSERT OR IGNORE INTO players')) {
       if (!players.has(args[0])) players.set(args[0], { id: args[0], name: args[1] });
       return [];
@@ -15,7 +16,8 @@ function fakeDatabase() {
     if (sql.startsWith('INSERT OR IGNORE INTO rounds')) {
       if (!rounds.has(args[0])) rounds.set(args[0], {
         id: args[0], player_id: args[1], route: args[2], time_seconds: args[3],
-        building_hits: args[4], car_hits: args[5], red_light_hits: args[6], score: args[7],
+        building_hits: args[4], car_hits: args[5], red_light_hits: args[6],
+        traffic_fines: args[7], score: args[8],
       });
       return [];
     }
@@ -30,7 +32,8 @@ function fakeDatabase() {
       return [...best.values()].sort((a, b) => b.score - a.score).slice(0, args[0])
         .map(r => ({ name: players.get(r.player_id).name, route: r.route,
           time_seconds: r.time_seconds, building_hits: r.building_hits,
-          car_hits: r.car_hits, red_light_hits: r.red_light_hits, score: r.score }));
+          car_hits: r.car_hits, red_light_hits: r.red_light_hits,
+          traffic_fines: r.traffic_fines, score: r.score }));
     }
     throw new Error(`Unexpected SQL: ${sql}`);
   };
@@ -51,7 +54,8 @@ test('preflight, origin restriction, and health', async () => {
   const preflight = await handler(request('/api/rounds', 'OPTIONS'), env);
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), origin);
-  assert.equal((await handler(request('/health'), env)).status, 200);
+  const health = await (await handler(request('/health'), env)).json();
+  assert.equal(health.traffic_fines, true);
   assert.equal((await handler(request('/health', 'GET', undefined, 'https://other.test'), env)).status, 403);
 });
 
@@ -72,6 +76,9 @@ test('score is recomputed, duplicate retry is safe, leaderboard keeps best run',
   const list = await (await handler(request('/api/leaderboard?limit=10'), env)).json();
   assert.equal(list.scores.length, 1);
   assert.equal(list.scores[0].score, 9900);
+  const fined = { ...better, id: 'e'.repeat(32), traffic_fines: 2 };
+  const result = await (await handler(request('/api/rounds', 'POST', fined), env)).json();
+  assert.equal(result.score, 8900);
 });
 
 test('invalid input is rejected without writing a round', async () => {
@@ -80,8 +87,25 @@ test('invalid input is rejected without writing a round', async () => {
     { id: 'x', name: 'A', route: 1, time_seconds: 10, building_hits: 0, car_hits: 0, red_light_hits: 0 },
     { id: 'c'.repeat(32), name: 'A', route: 4, time_seconds: 10, building_hits: 0, car_hits: 0, red_light_hits: 0 },
     { id: 'd'.repeat(32), name: 'A', route: 1, time_seconds: 0, building_hits: 0, car_hits: 0, red_light_hits: 0 },
+    { id: 'e'.repeat(32), name: 'A', route: 1, time_seconds: 10, building_hits: 0, car_hits: 0, red_light_hits: 0, traffic_fines: -1 },
   ]) assert.equal((await handler(request('/api/rounds', 'POST', bad), env)).status, 400);
   assert.equal(rounds.size, 0);
+});
+
+test('existing rounds table gains the fine column before leaderboard queries', async () => {
+  let altered = false;
+  const handler = createHandler(async (_env, sql) => {
+    if (sql === 'PRAGMA table_info(rounds)') return altered ? [{ name: 'traffic_fines' }] : [];
+    if (sql.startsWith('ALTER TABLE rounds ADD COLUMN traffic_fines')) {
+      altered = true;
+      return [];
+    }
+    if (sql.startsWith('SELECT name, route, time_seconds')) return [];
+    throw new Error(`Unexpected SQL: ${sql}`);
+  });
+  const response = await handler(request('/api/leaderboard'), env);
+  assert.equal(response.status, 200);
+  assert.equal(altered, true);
 });
 
 test('Hrana request keeps credentials server-side and decodes rows', async () => {

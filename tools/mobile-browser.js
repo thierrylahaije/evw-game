@@ -3,7 +3,7 @@
   const pointers = new Map();
   const commands = [];
   const driving = new Set(["left", "right", "reverse", "gas"]);
-  const actions = new Set(["pause", "calibrate", "fallback"]);
+  const actions = new Set(["pause", "camera", "calibrate", "fallback"]);
   const canvas = document.getElementById("canvas");
   let keyboardFocused = false;
   let keyboardRecovering = false;
@@ -78,7 +78,7 @@
     button.dataset.evwControl = key;
     button.setAttribute("aria-label", {
       left: "Links sturen", right: "Rechts sturen", reverse: "Remmen of achteruit",
-      gas: "Gas geven", pause: "Pauze", calibrate: "Stuur recht instellen",
+      gas: "Gas geven", pause: "Pauze", camera: "Wissel camera", calibrate: "Stuur recht instellen",
       fallback: "Gebruik stuurknoppen",
     }[key]);
     Object.assign(button.style, {

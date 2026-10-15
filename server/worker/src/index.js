@@ -55,7 +55,7 @@ export async function tursoQuery(env, sql, args = []) {
   if (!response.ok) throw new Error(`Turso HTTP ${response.status}`);
   const document = await response.json();
   const result = document.results?.[0];
-  if (result?.type !== 'ok') throw new Error('Turso query failed');
+  if (result?.type !== 'ok') throw new Error(`Turso query failed: ${result?.error?.message || 'unknown error'}`);
   const data = result.response.result;
   return data.rows.map(row => Object.fromEntries(row.map((cell, i) =>
     [data.cols[i].name, tursoValue(cell)])));
@@ -97,26 +97,27 @@ async function addRound(query, body) {
   const building = boundedInt(body.building_hits, 'Gebouwbotsingen', 0, 1000);
   const cars = boundedInt(body.car_hits, 'Autobotsingen', 0, 1000);
   const red = boundedInt(body.red_light_hits, 'Roodlichtovertredingen', 0, 1000);
+  const fines = boundedInt(body.traffic_fines ?? 0, 'Verkeersboetes', 0, 1000);
   const score = Math.max(0, BASE_SCORE - Math.ceil(seconds) * 2
-    - building * 400 - cars * 700 - red * 500);
+    - building * 400 - cars * 700 - red * 500 - fines * 500);
   const player = await registerPlayer(query, name);
   const existing = await query('SELECT * FROM rounds WHERE id = ?', [body.id]);
   if (!existing.length) {
-    await query('INSERT OR IGNORE INTO rounds(id, player_id, route, time_seconds, building_hits, car_hits, red_light_hits, score, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [body.id, player.id, route, seconds, building, cars, red, score, new Date().toISOString()]);
+    await query('INSERT OR IGNORE INTO rounds(id, player_id, route, time_seconds, building_hits, car_hits, red_light_hits, traffic_fines, score, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [body.id, player.id, route, seconds, building, cars, red, fines, score, new Date().toISOString()]);
   }
   const saved = (await query('SELECT * FROM rounds WHERE id = ?', [body.id]))[0];
   if (!saved) throw new Error('Round insert failed');
   if (saved.player_id !== player.id || saved.route !== route ||
       saved.time_seconds !== seconds || saved.building_hits !== building ||
-      saved.car_hits !== cars || saved.red_light_hits !== red)
+      saved.car_hits !== cars || saved.red_light_hits !== red || saved.traffic_fines !== fines)
     fail('Ronde-ID is al gebruikt met andere gegevens');
   return { id: body.id, score: saved.score, saved: true, duplicate: existing.length > 0 };
 }
 
-const LEADERBOARD_SQL = 'SELECT name, route, time_seconds, building_hits, car_hits, red_light_hits, score '
+const LEADERBOARD_SQL = 'SELECT name, route, time_seconds, building_hits, car_hits, red_light_hits, traffic_fines, score '
   + 'FROM (SELECT p.name, r.route, r.time_seconds, r.building_hits, r.car_hits, '
-  + 'r.red_light_hits, r.score, ROW_NUMBER() OVER '
+  + 'r.red_light_hits, r.traffic_fines, r.score, ROW_NUMBER() OVER '
   + '(PARTITION BY r.player_id ORDER BY r.score DESC, r.time_seconds ASC) AS place '
   + 'FROM rounds r JOIN players p ON p.id = r.player_id) '
   + 'WHERE place = 1 ORDER BY score DESC, time_seconds ASC LIMIT ?';
@@ -133,6 +134,7 @@ async function bodyJson(request) {
 }
 
 export function createHandler(queryFactory) {
+  let schemaReady = false;
   return async (request, env) => {
     const cors = corsHeaders(request, env);
     const origin = request.headers.get('Origin');
@@ -140,17 +142,33 @@ export function createHandler(queryFactory) {
       return json({ error: 'Herkomst niet toegestaan' }, 403);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const query = (sql, args = []) => queryFactory(env, sql, args);
+    const ensureSchema = async () => {
+      if (schemaReady) return;
+      const columns = await query('PRAGMA table_info(rounds)');
+      if (!columns.some(column => column.name === 'traffic_fines')) {
+        try {
+          await query('ALTER TABLE rounds ADD COLUMN traffic_fines INTEGER NOT NULL DEFAULT 0');
+        } catch (error) {
+          // A concurrent Worker may already have added the column.
+          if (!String(error).includes('duplicate column')) throw error;
+        }
+      }
+      schemaReady = true;
+    };
     const url = new URL(request.url);
     try {
       if (request.method === 'GET' && url.pathname === '/health')
-        return json({ ok: true }, 200, cors);
+        return json({ ok: true, traffic_fines: true }, 200, cors);
       if (request.method === 'POST' && url.pathname === '/api/players') {
         const body = await bodyJson(request);
         return json(await registerPlayer(query, body.name), 200, cors);
       }
-      if (request.method === 'POST' && url.pathname === '/api/rounds')
+      if (request.method === 'POST' && url.pathname === '/api/rounds') {
+        await ensureSchema();
         return json(await addRound(query, await bodyJson(request)), 200, cors);
+      }
       if (request.method === 'GET' && url.pathname === '/api/leaderboard') {
+        await ensureSchema();
         const raw = url.searchParams.get('limit') ?? '10';
         if (!/^\d+$/.test(raw)) fail('Ongeldige limiet');
         const limit = Math.max(1, Math.min(Number(raw), 50));

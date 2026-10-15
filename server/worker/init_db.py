@@ -17,6 +17,8 @@ def main() -> None:
                        os.getenv("TURSO_AUTH_TOKEN", ""))
     for statement in SCHEMA:
         store.execute(statement)
+    if not any(row["name"] == "traffic_fines" for row in store.execute("PRAGMA table_info(rounds)")):
+        store.execute("ALTER TABLE rounds ADD COLUMN traffic_fines INTEGER NOT NULL DEFAULT 0")
     print("Turso schema initialized")
 
 

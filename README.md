@@ -2,6 +2,8 @@
 
 Een Godot 4.7.2-game met een webexport voor GitHub Pages en een online ranglijst. De game bewaart ritten lokaal en uploadt ze naar de score-API zodra die bereikbaar is.
 
+Tijdens het rijden wissel je met **C** (desktop) of **Camera** (mobiel) tussen de buitencamera en de cabine met twee live zijspiegels. Op het terrein geldt 30 km/u, op de zuidelijke wegen 50 km/u; het dashboard toont de limiet. Flitspalen, het stopbord bij de terreinuitrit en voorrang bij rotondes kunnen elk een verkeersboete van 500 punten opleveren. De truck kan maximaal 75 km/u rijden.
+
 ## Projectonderdelen
 
 - `assets/` en de Godot-bronbestanden: game en resources.
@@ -45,6 +47,8 @@ De workflow publiceert alleen `dist/web/`; `dist/` hoeft dus niet in Git te staa
 ## Score-API instellen en deployen
 
 Maak eerst de tabellen aan in de bestaande Turso-database met `server/worker/schema.sql`. Je kunt het schema ook lokaal initialiseren met `server/worker/init_db.py` en de omgevingsvariabelen `TURSO_DATABASE_URL` en `TURSO_AUTH_TOKEN`. Deel of commit deze waarden nooit.
+
+Bij een bestaande database voegt de nieuwe Worker bij het eerste scoreverzoek automatisch de kolom `traffic_fines` toe. Ritten met verkeersboetes blijven lokaal in de uploadwachtrij totdat de Worker via `/health` aangeeft dat deze versie actief is; zo raakt de online score niet uit sync met de speluitslag.
 
 Stel in `server/worker/wrangler.toml` bij `EVW_ALLOWED_ORIGIN` de origin van de Pages-site in. Voor een projectsite is dat bijvoorbeeld `https://gebruikersnaam.github.io`: laat het repositorypad weg. Voeg bij lokaal testen eventueel `http://localhost:8765` toe, gescheiden door een komma.
 

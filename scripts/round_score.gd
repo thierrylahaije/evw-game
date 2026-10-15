@@ -13,6 +13,7 @@ var elapsed_seconds := 0.0
 var building_hits := 0
 var car_hits := 0
 var red_light_hits := 0
+var traffic_fines := 0
 var finished := false
 var active_contacts: Dictionary = {}
 var last_hit_at: Dictionary = {}
@@ -24,6 +25,8 @@ var truck: VehicleBody3D
 var traffic_signals: Array[Node3D] = []
 var previous_front := Vector3.ZERO
 var last_red_crossing: Dictionary = {}
+var fine_label: Label
+var fine_until := 0.0
 
 func _ready() -> void:
 	var scene := get_parent()
@@ -43,12 +46,12 @@ func _ready() -> void:
 	add_child(layer)
 	hud = HBoxContainer.new()
 	hud.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	hud.offset_left = -726.0
+	hud.offset_left = -868.0
 	hud.offset_top = 20.0
 	hud.offset_right = -24.0
 	hud.offset_bottom = 104.0
 	if Session.control_mode != "desktop":
-		hud.offset_left = -480.0
+		hud.offset_left = -570.0
 		hud.offset_top = 10.0
 		hud.scale = Vector2(0.65, 0.65)
 	hud.add_theme_constant_override("separation", 8)
@@ -58,7 +61,32 @@ func _ready() -> void:
 	_add_kpi("building", "GEBOUW/MUUR", Color("#ffab6b"))
 	_add_kpi("cars", "AUTO'S", Color("#ffab6b"))
 	_add_kpi("red", "ROOD LICHT", Color("#ffab6b"))
+	_add_kpi("fines", "BOETES", Color("#ff7770"))
 	_add_kpi("score", "SCORE", Color("#ffc75b"))
+	fine_label = Label.new()
+	fine_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	fine_label.offset_left = -260
+	fine_label.offset_right = 260
+	fine_label.offset_top = 125
+	fine_label.offset_bottom = 160
+	fine_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	fine_label.add_theme_font_size_override("font_size", 22)
+	fine_label.add_theme_color_override("font_color", Color("#ff7770"))
+	fine_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	fine_label.add_theme_constant_override("shadow_offset_x", 2)
+	fine_label.add_theme_constant_override("shadow_offset_y", 2)
+	fine_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(fine_label)
+	fine_label.hide()
+	_refresh_hud()
+
+func add_traffic_fine(reason: String) -> void:
+	if finished:
+		return
+	traffic_fines += 1
+	fine_label.text = "%s · −%d punten" % [reason, Session.TRAFFIC_FINE_PENALTY]
+	fine_until = elapsed_seconds + 3.0
+	fine_label.show()
 	_refresh_hud()
 
 func _add_kpi(key: String, title: String, accent: Color) -> void:
@@ -96,6 +124,8 @@ func _physics_process(delta: float) -> void:
 	if finished:
 		return
 	elapsed_seconds += delta
+	if fine_label.visible and elapsed_seconds >= fine_until:
+		fine_label.hide()
 	var front := truck.to_global(TRUCK_FRONT_LOCAL)
 	for signal_node in traffic_signals:
 		if _crossed_red_signal(signal_node, previous_front, front):
@@ -183,7 +213,7 @@ func _on_mission_finished(route_index: int) -> void:
 	finished = true
 	_refresh_hud()
 	if record_results:
-		Session.finish_round(route_index, elapsed_seconds, building_hits, car_hits, red_light_hits)
+		Session.finish_round(route_index, elapsed_seconds, building_hits, car_hits, red_light_hits, traffic_fines)
 		var shared_scores := get_node_or_null("/root/SharedScores")
 		if shared_scores != null:
 			shared_scores.sync_pending()
@@ -200,4 +230,5 @@ func _refresh_hud() -> void:
 	(kpi_values["building"] as Label).text = str(building_hits)
 	(kpi_values["cars"] as Label).text = str(car_hits)
 	(kpi_values["red"] as Label).text = str(red_light_hits)
-	(kpi_values["score"] as Label).text = str(Session.calculate_score(elapsed_seconds, building_hits, car_hits, red_light_hits))
+	(kpi_values["fines"] as Label).text = str(traffic_fines)
+	(kpi_values["score"] as Label).text = str(Session.calculate_score(elapsed_seconds, building_hits, car_hits, red_light_hits, traffic_fines))

@@ -120,6 +120,8 @@ func _valid_round(value: Variant, expected_id: String) -> bool:
 	for key in ["route", "building_hits", "car_hits", "red_light_hits", "score"]:
 		if not _is_whole_number(value.get(key)):
 			return false
+	if not _is_whole_number(value.get("traffic_fines", 0)) or int(value.get("traffic_fines", 0)) < 0:
+		return false
 	if int(value.route) < 1 or int(value.route) > 3:
 		return false
 	if not value.get("time_seconds") is float and not value.get("time_seconds") is int:
@@ -130,7 +132,7 @@ func _valid_round(value: Variant, expected_id: String) -> bool:
 		if int(value[key]) < 0:
 			return false
 	return int(value.score) == Session.calculate_score(float(value.time_seconds),
-		int(value.building_hits), int(value.car_hits), int(value.red_light_hits))
+		int(value.building_hits), int(value.car_hits), int(value.red_light_hits), int(value.get("traffic_fines", 0)))
 
 func _is_whole_number(value: Variant) -> bool:
 	return (value is int or value is float) and float(value) == float(int(value))

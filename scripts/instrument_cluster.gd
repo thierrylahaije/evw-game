@@ -63,7 +63,7 @@ func set_readings(speed: float, rpm: float, steer: float, articulation: float) -
 	queue_redraw()
 
 func _draw() -> void:
-	_draw_gauge(Vector2(96, 85), speed_kmh / 60.0, BLUE)
+	_draw_gauge(Vector2(96, 85), speed_kmh / 80.0, BLUE)
 	_draw_gauge(Vector2(244, 85), engine_rpm / 3000.0, GOLD)
 	_draw_steering_wheel(Vector2(400, 85))
 

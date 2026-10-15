@@ -78,6 +78,7 @@ func _update_browser_controls() -> void:
 	var keys: Array[String] = []
 	if Session.control_mode != "desktop" and not pause_menu.overlay.visible and surface.size.x >= surface.size.y:
 		keys.append("pause")
+		keys.append("camera")
 		if Session.control_mode == "buttons":
 			keys.append_array(BUTTONS)
 		elif calibrated:
@@ -188,6 +189,8 @@ func _input(event: InputEvent) -> void:
 func _activate(key: String) -> void:
 	if key == "pause":
 		pause_menu.open_pause()
+	elif key == "camera":
+		get_parent().get_node("CameraViews").toggle_view()
 	elif key == "calibrate":
 		calibrate()
 	elif key == "fallback":
@@ -273,6 +276,7 @@ func _rects() -> Dictionary:
 	var bottom := size.y - height - margin
 	var result := {
 		"pause": Rect2(Vector2(margin, margin), Vector2(96, 48)),
+		"camera": Rect2(Vector2(margin + 106.0, margin), Vector2(110, 48)),
 		"left": Rect2(Vector2(margin, bottom), Vector2(width, height)),
 		"right": Rect2(Vector2(margin + width + gap, bottom), Vector2(width, height)),
 		"reverse": Rect2(Vector2(size.x - margin - width * 2.0 - gap, bottom), Vector2(width, height)),
@@ -291,7 +295,7 @@ func _rects() -> Dictionary:
 
 func _hit(position: Vector2) -> String:
 	var rects := _rects()
-	for key in ["calibrate", "fallback", "pause", "left", "right", "reverse", "gas"]:
+	for key in ["calibrate", "fallback", "pause", "camera", "left", "right", "reverse", "gas"]:
 		if rects.has(key) and (rects[key] as Rect2).has_point(position):
 			if Session.control_mode == "tilt" and not calibrated and key in BUTTONS:
 				continue
@@ -309,6 +313,7 @@ func _draw_controls() -> void:
 		return
 	var rects := _rects()
 	_draw_button(rects.pause, "Pauze", false, 19)
+	_draw_button(rects.camera, "Camera", false, 18)
 	_draw_centered("%d km/u" % shown_speed_kmh, Vector2(225, 48), 21, INK)
 	if Session.control_mode == "buttons":
 		_draw_button(rects.left, "Links", held.has("left"), 20)

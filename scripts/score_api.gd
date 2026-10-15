@@ -10,8 +10,12 @@ const RETRY_SECONDS := 30.0
 var base_url := ""
 var upload_request: HTTPRequest
 var leaderboard_request: HTTPRequest
+var feature_request: HTTPRequest
 var uploading_id := ""
 var leaderboard_busy := false
+var feature_busy := false
+var supports_traffic_fines := false
+var feature_checked_at := -30000
 
 func _ready() -> void:
 	# The public Worker URL is supplied by the HTML shell at deployment time.
@@ -32,6 +36,10 @@ func _ready() -> void:
 	leaderboard_request.timeout = 8.0
 	leaderboard_request.request_completed.connect(_on_leaderboard_completed)
 	add_child(leaderboard_request)
+	feature_request = HTTPRequest.new()
+	feature_request.timeout = 8.0
+	feature_request.request_completed.connect(_on_feature_completed)
+	add_child(feature_request)
 	var retry := Timer.new()
 	retry.wait_time = RETRY_SECONDS
 	retry.autostart = true
@@ -62,6 +70,12 @@ func sync_pending() -> void:
 	if pending.is_empty():
 		return
 	var result: Dictionary = pending[0]
+	if int(result.get("traffic_fines", 0)) > 0 and not supports_traffic_fines:
+		var now := Time.get_ticks_msec()
+		if not feature_busy and now - feature_checked_at >= 30000:
+			feature_checked_at = now
+			feature_busy = feature_request.request(base_url + "/health") == OK
+		return
 	uploading_id = String(result.id)
 	var payload := {
 		"id": uploading_id,
@@ -71,11 +85,21 @@ func sync_pending() -> void:
 		"building_hits": int(result.building_hits),
 		"car_hits": int(result.car_hits),
 		"red_light_hits": int(result.get("red_light_hits", 0)),
+		"traffic_fines": int(result.get("traffic_fines", 0)),
 	}
 	var error := upload_request.request(base_url + "/api/rounds", ["Content-Type: application/json"],
 		HTTPClient.METHOD_POST, JSON.stringify(payload))
 	if error != OK:
 		uploading_id = ""
+
+func _on_feature_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	feature_busy = false
+	if result != HTTPRequest.RESULT_SUCCESS or code != 200:
+		return
+	var response = JSON.parse_string(body.get_string_from_utf8())
+	supports_traffic_fines = response is Dictionary and response.get("traffic_fines", false) == true
+	if supports_traffic_fines:
+		sync_pending.call_deferred()
 
 func _on_upload_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
 	var completed_id := uploading_id

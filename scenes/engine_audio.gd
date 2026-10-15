@@ -50,7 +50,7 @@ func _process(delta: float) -> void:
 			gear_max_speed = 39.0
 		6:
 			gear_min_speed = 39.0
-			gear_max_speed = 50.0
+			gear_max_speed = 75.0
 
 	# Hoe ver zitten we binnen de huidige versnelling?
 	var gear_progress: float = (

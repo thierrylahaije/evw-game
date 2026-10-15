@@ -1,6 +1,7 @@
 import json
 import io
 import re
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -56,6 +57,24 @@ class ScoreApiTests(unittest.TestCase):
         self.request("/api/rounds", self.round("c" * 32, name="Tweede", route=3))
         self.assertEqual(len(self.request("/api/leaderboard")["scores"]), 2)
 
+    def test_traffic_fines_reduce_score(self):
+        run = self.round("f" * 32) | {"traffic_fines": 2}
+        saved = self.request("/api/rounds", run)
+        self.assertEqual(saved["score"], 7158)
+        self.assertEqual(self.request("/api/leaderboard")["scores"][0]["traffic_fines"], 2)
+
+    def test_existing_database_receives_fine_column(self):
+        path = Path(self.temp.name) / "legacy.db"
+        database = sqlite3.connect(path)
+        database.execute("CREATE TABLE rounds(id TEXT PRIMARY KEY, player_id TEXT, route INTEGER, "
+                         "time_seconds REAL, building_hits INTEGER, car_hits INTEGER, "
+                         "red_light_hits INTEGER, score INTEGER, completed_at TEXT)")
+        database.commit()
+        database.close()
+        upgraded = ScoreService(SQLiteStore(str(path)))
+        columns = upgraded.store.execute("PRAGMA table_info(rounds)")
+        self.assertIn("traffic_fines", [column["name"] for column in columns])
+
     def test_turso_wire_format_and_result_decode(self):
         response = {"results": [{"type": "ok", "response": {"result": {
             "cols": [{"name": "score"}],
@@ -78,7 +97,7 @@ class ScoreApiTests(unittest.TestCase):
     def test_server_and_game_scoring_match(self):
         source = (Path(__file__).resolve().parents[1] / "scripts/game_session.gd").read_text()
         for name in ("BASE_SCORE", "POINTS_PER_SECOND", "BUILDING_PENALTY",
-                     "CAR_PENALTY", "RED_LIGHT_PENALTY"):
+                     "CAR_PENALTY", "RED_LIGHT_PENALTY", "TRAFFIC_FINE_PENALTY"):
             match = re.search(rf"const {name} := (\d+)", source)
             self.assertIsNotNone(match, name)
             self.assertEqual(int(match.group(1)), getattr(score_api, name), name)

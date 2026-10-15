@@ -20,6 +20,7 @@ POINTS_PER_SECOND = 2
 BUILDING_PENALTY = 400
 CAR_PENALTY = 700
 RED_LIGHT_PENALTY = 500
+TRAFFIC_FINE_PENALTY = 500
 MAX_BODY_BYTES = 16_384
 
 SCHEMA = (
@@ -31,7 +32,8 @@ SCHEMA = (
     "route INTEGER NOT NULL CHECK(route BETWEEN 1 AND 3), "
     "time_seconds REAL NOT NULL CHECK(time_seconds >= 0), "
     "building_hits INTEGER NOT NULL, car_hits INTEGER NOT NULL, "
-    "red_light_hits INTEGER NOT NULL, score INTEGER NOT NULL, completed_at TEXT NOT NULL)",
+    "red_light_hits INTEGER NOT NULL, traffic_fines INTEGER NOT NULL DEFAULT 0, "
+    "score INTEGER NOT NULL, completed_at TEXT NOT NULL)",
     "CREATE INDEX IF NOT EXISTS rounds_rank ON rounds(score DESC, time_seconds ASC)",
 )
 
@@ -114,6 +116,8 @@ class ScoreService:
         self.store = store
         for sql in SCHEMA:
             store.execute(sql)
+        if not any(row["name"] == "traffic_fines" for row in store.execute("PRAGMA table_info(rounds)")):
+            store.execute("ALTER TABLE rounds ADD COLUMN traffic_fines INTEGER NOT NULL DEFAULT 0")
 
     @staticmethod
     def clean_name(value: object) -> str:
@@ -158,37 +162,38 @@ class ScoreService:
         building = self._int(body.get("building_hits"), "Gebouwbotsingen", 0, 1000)
         cars = self._int(body.get("car_hits"), "Autobotsingen", 0, 1000)
         red = self._int(body.get("red_light_hits"), "Roodlichtovertredingen", 0, 1000)
+        fines = self._int(body.get("traffic_fines", 0), "Verkeersboetes", 0, 1000)
         score = max(0, BASE_SCORE - math.ceil(seconds) * POINTS_PER_SECOND
                     - building * BUILDING_PENALTY - cars * CAR_PENALTY
-                    - red * RED_LIGHT_PENALTY)
+                    - red * RED_LIGHT_PENALTY - fines * TRAFFIC_FINE_PENALTY)
         player = self.player(name)
         existing = self.store.execute("SELECT * FROM rounds WHERE id = ?", (run_id,))
         if existing:
             old = existing[0]
             if (old["player_id"], old["route"], old["time_seconds"], old["building_hits"],
-                old["car_hits"], old["red_light_hits"]) != (
-                    player["id"], route, seconds, building, cars, red):
+                old["car_hits"], old["red_light_hits"], old["traffic_fines"]) != (
+                    player["id"], route, seconds, building, cars, red, fines):
                 raise ValueError("Ronde-ID is al gebruikt met andere gegevens")
             return {"id": run_id, "score": old["score"], "saved": True, "duplicate": True}
         self.store.execute(
             "INSERT OR IGNORE INTO rounds(id, player_id, route, time_seconds, building_hits, "
-            "car_hits, red_light_hits, score, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (run_id, player["id"], route, seconds, building, cars, red, score,
+            "car_hits, red_light_hits, traffic_fines, score, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run_id, player["id"], route, seconds, building, cars, red, fines, score,
              datetime.now(timezone.utc).isoformat()),
         )
         stored = self.store.execute("SELECT * FROM rounds WHERE id = ?", (run_id,))[0]
         if (stored["player_id"], stored["route"], stored["time_seconds"], stored["building_hits"],
-            stored["car_hits"], stored["red_light_hits"]) != (
-                player["id"], route, seconds, building, cars, red):
+            stored["car_hits"], stored["red_light_hits"], stored["traffic_fines"]) != (
+                player["id"], route, seconds, building, cars, red, fines):
             raise ValueError("Ronde-ID is al gebruikt met andere gegevens")
         return {"id": run_id, "score": stored["score"], "saved": True, "duplicate": False}
 
     def leaderboard(self, limit: int = 10) -> list[dict]:
         limit = max(1, min(limit, 50))
         return self.store.execute(
-            "SELECT name, route, time_seconds, building_hits, car_hits, red_light_hits, score "
+            "SELECT name, route, time_seconds, building_hits, car_hits, red_light_hits, traffic_fines, score "
             "FROM (SELECT p.name, r.route, r.time_seconds, r.building_hits, r.car_hits, "
-            "r.red_light_hits, r.score, ROW_NUMBER() OVER "
+            "r.red_light_hits, r.traffic_fines, r.score, ROW_NUMBER() OVER "
             "(PARTITION BY r.player_id ORDER BY r.score DESC, r.time_seconds ASC) AS place "
             "FROM rounds r JOIN players p ON p.id = r.player_id) "
             "WHERE place = 1 ORDER BY score DESC, time_seconds ASC LIMIT ?", (limit,),
@@ -210,7 +215,7 @@ def make_handler(service: ScoreService):
             parsed = urlparse(self.path)
             try:
                 if parsed.path == "/health":
-                    self._json(200, {"ok": True})
+                    self._json(200, {"ok": True, "traffic_fines": True})
                 elif parsed.path == "/api/leaderboard":
                     raw = parse_qs(parsed.query).get("limit", ["10"])[0]
                     self._json(200, {"scores": service.leaderboard(int(raw))})
