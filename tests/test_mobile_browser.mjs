@@ -52,15 +52,16 @@ function browser(permission, active = true) {
   window.dispatchEvent = (event) => { resizeCount += 1; window.dispatch(event.type, event); };
   let now = 1000;
   const timers = [];
+  const screen = { orientation: { angle: 0 } };
   const context = {
     window, document, DeviceOrientationEvent: window.DeviceOrientationEvent,
     navigator: { userActivation: { isActive: active } },
-    screen: { orientation: { angle: 0 } },
+    screen,
     Date: { now: () => now }, Event: class {}, setTimeout: (callback) => { timers.push(callback); },
   };
   runInNewContext(readFileSync(new URL("../tools/mobile-browser.js", import.meta.url), "utf8"), context);
   runInNewContext(readFileSync(new URL("../tools/mobile-sensors.js", import.meta.url), "utf8"), context);
-  return { window, document, buttons, canvas, setNow: (value) => { now = value; }, runTimers: () => {
+  return { window, document, buttons, canvas, screen, setNow: (value) => { now = value; }, runTimers: () => {
     for (const callback of timers.splice(0)) callback();
   }, resizeCount: () => resizeCount };
 }
@@ -135,6 +136,21 @@ env.document.dispatch("visibilitychange");
 assert.equal(env.window.EVW_TILT.status(), "lost", "backgrounding invalidates sensor reading");
 assert.equal(env.window.EVW_TILT.calibrate(), 0, "calibration needs a sensor reading");
 assert.equal(env.window.EVW_TILT.detail(), "Geen sensormeting beschikbaar", "failure explains retry");
+
+for (const [angle, rightBeta] of [[90, 12], [270, -12]]) {
+  const tilted = browser(() => Promise.resolve("granted"));
+  tilted.screen.orientation.angle = angle;
+  tilted.window.EVW_TILT.showRequest(0, 0, 1, 1);
+  tilted.buttons.find((button) => button.textContent === "Sensor inschakelen").dispatch("click");
+  await Promise.resolve();
+  tilted.window.dispatch("deviceorientation", { beta: 0, gamma: 0 });
+  assert.equal(tilted.window.EVW_TILT.calibrate(), 1);
+  assert.equal(tilted.window.EVW_TILT.steering(), 0, `neutral stays centered at ${angle} degrees`);
+  tilted.window.dispatch("deviceorientation", { beta: rightBeta, gamma: 0 });
+  assert.ok(tilted.window.EVW_TILT.steering() < 0, `right tilt steers right at ${angle} degrees`);
+  tilted.window.dispatch("deviceorientation", { beta: -rightBeta, gamma: 0 });
+  assert.ok(tilted.window.EVW_TILT.steering() > 0, `left tilt steers left at ${angle} degrees`);
+}
 
 const denied = browser(() => Promise.reject({ name: "NotAllowedError" }));
 denied.window.EVW_TILT.showRequest(0, 0, 1, 1);

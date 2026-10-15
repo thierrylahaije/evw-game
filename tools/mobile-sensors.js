@@ -128,7 +128,9 @@
       while (difference > 180) difference -= 360;
       while (difference < -180) difference += 360;
       const degrees = Math.max(0, Math.abs(difference) - 3);
-      return Math.sign(difference) * Math.min(1, degrees / 22);
+      if (degrees === 0) return 0;
+      // Positive vehicle steering means left; positive screen tilt means right.
+      return -Math.sign(difference) * Math.min(1, degrees / 22);
     },
     reset: function () { neutral = null; },
   };
