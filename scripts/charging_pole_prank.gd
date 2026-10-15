@@ -4,9 +4,10 @@ extends Node3D
 const Session = preload("res://scripts/game_session.gd")
 const RouteGuidance = preload("res://scripts/route_guidance.gd")
 const ChargingPole = preload("res://scripts/charging_pole.gd")
-const MIN_AHEAD := 60.0
-const MAX_AHEAD := 110.0
-const JUNCTION_CLEARANCE := 18.0
+const MIN_AHEAD := 18.0
+const MAX_AHEAD := 26.0
+const JUNCTION_CLEARANCE := 8.0
+const MIN_DRIVING_SPEED := 1.5
 const MAX_POLES := 5
 const SPAWN_CHANCE := 0.55
 
@@ -30,7 +31,7 @@ func _ready() -> void:
 		set_process(false)
 		return
 	rng.randomize()
-	next_attempt_at = rng.randf_range(25.0, 35.0)
+	next_attempt_at = 0.0
 	truck = get_parent().get_node("TruckModel")
 	trailer = get_parent().get_node("TrailerModel")
 	mission = get_parent().get_node("MissionController")
@@ -56,23 +57,31 @@ func _process(delta: float) -> void:
 		return
 	if mission.stage != mission.Stage.DELIVERING or elapsed < next_attempt_at:
 		return
-	var windows := candidate_windows(mission.route_guidance.current_route)
-	if windows.is_empty():
-		next_attempt_at = elapsed + 8.0
+	if truck.linear_velocity.dot(truck.global_basis.z.normalized()) < MIN_DRIVING_SPEED:
 		return
-	next_attempt_at = elapsed + rng.randf_range(45.0, 75.0)
-	if rng.randf() > SPAWN_CHANCE:
+	# Rebuild from the truck's current location: the drawn GPS route can lag behind it.
+	var windows := candidate_windows(mission.route_guidance.path_from_current_position())
+	if windows.is_empty():
+		next_attempt_at = elapsed + 0.25
 		return
 	var choices := windows.duplicate()
 	while not choices.is_empty():
 		var window: Dictionary = choices.pop_at(rng.randi_range(0, choices.size() - 1))
-		var ahead := rng.randf_range(float(window.first), float(window.last))
-		var position: Vector2 = window.start + window.direction * (ahead - float(window.traveled))
-		if _safe_position(position):
+		for sample in range(3):
+			var ahead := rng.randf_range(float(window.first), float(window.last))
+			var position: Vector2 = window.start + window.direction * (ahead - float(window.traveled))
+			if not _safe_position(position):
+				continue
+			# The first pole is guaranteed on the drive to the first address.
+			# Later poles remain random, with at most five per round.
+			if spawned_count > 0 and rng.randf() > SPAWN_CHANCE:
+				next_attempt_at = elapsed + rng.randf_range(45.0, 75.0)
+				return
 			_spawn_pole(position, window.direction)
+			next_attempt_at = elapsed + rng.randf_range(45.0, 75.0)
 			return
-	# A nearby vehicle can make a segment temporarily unsafe; retry soon.
-	next_attempt_at = elapsed + 8.0
+	# Traffic can temporarily occupy the next clear straight; keep trying.
+	next_attempt_at = elapsed + 0.25
 
 static func candidate_windows(path: Array[Vector2]) -> Array[Dictionary]:
 	var windows: Array[Dictionary] = []
@@ -105,10 +114,14 @@ static func _is_road_lane(start: Vector2, finish: Vector2) -> bool:
 func _safe_position(point: Vector2) -> bool:
 	var truck_point := Vector2(truck.global_position.x, truck.global_position.z)
 	var trailer_point := Vector2(trailer.global_position.x, trailer.global_position.z)
-	if point.distance_to(truck_point) < 45.0 or point.distance_to(trailer_point) < 45.0:
+	var offset := point - truck_point
+	var forward := Vector2(truck.global_basis.z.x, truck.global_basis.z.z).normalized()
+	if offset.length() < 15.0 or offset.normalized().dot(forward) < 0.65:
+		return false
+	if point.distance_to(trailer_point) < 15.0:
 		return false
 	var destination := Vector2(mission.marker.global_position.x, mission.marker.global_position.z)
-	if point.distance_to(destination) < 35.0:
+	if point.distance_to(destination) < 22.0:
 		return false
 	for car in traffic.cars:
 		var body: Node3D = car.body

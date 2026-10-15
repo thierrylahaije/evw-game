@@ -205,6 +205,13 @@ func _lane_path(road_points: Array[Vector2], start: Vector2, target: Vector2) ->
 	_append_unique(points, target)
 	return points
 
+func path_from_current_position() -> Array[Vector2]:
+	if truck == null or mission == null or mission.marker == null:
+		return []
+	var position := Vector2(truck.global_position.x, truck.global_position.z)
+	var target := Vector2(mission.marker.global_position.x, mission.marker.global_position.z)
+	return _lane_path(_road_path(position, target), position, target)
+
 func _replan() -> void:
 	if mission == null or truck == null or mission.marker == null:
 		return
@@ -217,7 +224,7 @@ func _replan() -> void:
 		ribbon.visible = false
 		current_route.clear()
 		return
-	current_route = _lane_path(_road_path(last_position, last_target), last_position, last_target)
+	current_route = path_from_current_position()
 	ribbon.visible = true
 	_draw_ribbon(current_route)
 

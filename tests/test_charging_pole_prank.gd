@@ -13,6 +13,24 @@ func check(condition: bool, message: String) -> void:
 		failures += 1
 		printerr("FAIL: " + message)
 
+func drive_until_first_pole(prank: Node, mission: Node3D, truck: VehicleBody3D) -> bool:
+	var route: Array[Vector2] = mission.route_guidance.current_route.duplicate()
+	for index in range(route.size() - 1):
+		var segment := route[index + 1] - route[index]
+		if segment.length() < 45.0 or not Prank._is_road_lane(route[index], route[index + 1]):
+			continue
+		var direction := segment.normalized()
+		for meters in range(10, int(segment.length()) - 20, 10):
+			var point := route[index] + direction * float(meters)
+			truck.global_position = Vector3(point.x, 0.0, point.y)
+			truck.global_basis = Basis.looking_at(Vector3(direction.x, 0, direction.y), Vector3.UP, true)
+			truck.linear_velocity = truck.global_basis.z * 6.0
+			prank.next_attempt_at = 0.0
+			prank._process(0.1)
+			if is_instance_valid(prank.active_pole):
+				return true
+	return false
+
 func run_checks() -> void:
 	for name in ["Ab", "_Ab", "Ab_", "mijn_AB_test", "cab"]:
 		check(Session.charging_pole_prank_enabled(name), "Name %s enables the prank" % name)
@@ -22,8 +40,8 @@ func run_checks() -> void:
 	var windows: Array[Dictionary] = Prank.candidate_windows(straight)
 	check(windows.size() == 1, "A long straight lane has a safe spawn window")
 	if not windows.is_empty():
-		check(float(windows[0].first) >= 60.0 and float(windows[0].last) <= 110.0, "Pole stays well ahead")
-	var junction: Array[Vector2] = [Vector2(0, 36.70), Vector2(65, 36.70), Vector2(65, 80)]
+		check(float(windows[0].first) >= 18.0 and float(windows[0].last) <= 26.0, "Pole pops up close ahead")
+	var junction: Array[Vector2] = [Vector2(0, 36.70), Vector2(24, 36.70), Vector2(24, 80)]
 	check(Prank.candidate_windows(junction).is_empty(), "Short junction segments are excluded")
 	var off_road: Array[Vector2] = [Vector2(0, 50), Vector2(200, 50)]
 	check(Prank.candidate_windows(off_road).is_empty(), "Off-road locations are excluded")
@@ -50,13 +68,18 @@ func run_checks() -> void:
 	mission.stage = mission.Stage.DELIVERING
 	mission._show_delivery_marker()
 	mission.route_guidance.refresh()
-	check(not Prank.candidate_windows(mission.route_guidance.current_route).is_empty(), "A real delivery route offers a safe road segment")
-	for attempt in range(100):
-		prank.next_attempt_at = 0.0
-		prank._process(0.1)
-		if is_instance_valid(prank.active_pole):
-			break
-	check(is_instance_valid(prank.active_pole), "The running spawner can place a pole on the delivery route")
+	prank.next_attempt_at = 0.0
+	prank._process(0.1)
+	check(prank.active_pole == null, "A stationary truck never gets a sudden obstacle")
+	var truck: VehicleBody3D = scene.get_node("TruckModel")
+	check(drive_until_first_pole(prank, mission, truck), "The first pole appears while driving to the first address")
+	check(prank.spawned_count == 1 and mission.stop_index == 0, "The first pole arrives before the first delivery")
+	if is_instance_valid(prank.active_pole):
+		var offset := Vector2(prank.active_pole.global_position.x - truck.global_position.x,
+			prank.active_pole.global_position.z - truck.global_position.z)
+		var forward := Vector2(truck.global_basis.z.x, truck.global_basis.z.z).normalized()
+		check(offset.length() >= 15.0 and offset.length() <= 28.0, "The obstacle appears only a short distance ahead")
+		check(offset.normalized().dot(forward) > 0.65, "The obstacle appears in front of the moving truck")
 	prank._remove_pole()
 	prank.spawned_count = 0
 	var before := Session.calculate_score(60.0, score.building_hits, score.car_hits)
@@ -94,12 +117,8 @@ func run_checks() -> void:
 		route_mission._show_delivery_marker()
 		route_mission.route_guidance.refresh()
 		var route_prank = route_scene.get_node("ChargingPolePrank")
-		for attempt in range(100):
-			route_prank.next_attempt_at = 0.0
-			route_prank._process(0.1)
-			if is_instance_valid(route_prank.active_pole):
-				break
-		check(is_instance_valid(route_prank.active_pole), "Route %d can spawn an avoidable pole" % (route_id + 1))
+		var route_truck: VehicleBody3D = route_scene.get_node("TruckModel")
+		check(drive_until_first_pole(route_prank, route_mission, route_truck) and route_mission.stop_index == 0, "Route %d gets its first pole before its first address" % (route_id + 1))
 		root.remove_child(route_scene)
 		route_scene.queue_free()
 		await process_frame
