@@ -4,9 +4,10 @@ extends Node3D
 const Session = preload("res://scripts/game_session.gd")
 const RouteGuidance = preload("res://scripts/route_guidance.gd")
 const ChargingPole = preload("res://scripts/charging_pole.gd")
-const MIN_AHEAD := 18.0
-const MAX_AHEAD := 26.0
-const JUNCTION_CLEARANCE := 8.0
+## The cab reaches about 7.15 m ahead of the truck origin, leaving 4-8 m to react.
+const MIN_AHEAD := 11.5
+const MAX_AHEAD := 15.5
+const JUNCTION_CLEARANCE := 5.0
 const MIN_DRIVING_SPEED := 1.5
 const MAX_POLES := 5
 const SPAWN_CHANCE := 0.55
@@ -116,7 +117,7 @@ func _safe_position(point: Vector2) -> bool:
 	var trailer_point := Vector2(trailer.global_position.x, trailer.global_position.z)
 	var offset := point - truck_point
 	var forward := Vector2(truck.global_basis.z.x, truck.global_basis.z.z).normalized()
-	if offset.length() < 15.0 or offset.normalized().dot(forward) < 0.65:
+	if offset.length() < 10.5 or offset.normalized().dot(forward) < 0.65:
 		return false
 	if point.distance_to(trailer_point) < 15.0:
 		return false

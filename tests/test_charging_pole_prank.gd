@@ -40,8 +40,8 @@ func run_checks() -> void:
 	var windows: Array[Dictionary] = Prank.candidate_windows(straight)
 	check(windows.size() == 1, "A long straight lane has a safe spawn window")
 	if not windows.is_empty():
-		check(float(windows[0].first) >= 18.0 and float(windows[0].last) <= 26.0, "Pole pops up close ahead")
-	var junction: Array[Vector2] = [Vector2(0, 36.70), Vector2(24, 36.70), Vector2(24, 80)]
+		check(float(windows[0].first) >= 11.5 and float(windows[0].last) <= 15.5, "Pole pops up just ahead of the cab")
+	var junction: Array[Vector2] = [Vector2(0, 36.70), Vector2(12, 36.70), Vector2(12, 80)]
 	check(Prank.candidate_windows(junction).is_empty(), "Short junction segments are excluded")
 	var off_road: Array[Vector2] = [Vector2(0, 50), Vector2(200, 50)]
 	check(Prank.candidate_windows(off_road).is_empty(), "Off-road locations are excluded")
@@ -78,7 +78,7 @@ func run_checks() -> void:
 		var offset := Vector2(prank.active_pole.global_position.x - truck.global_position.x,
 			prank.active_pole.global_position.z - truck.global_position.z)
 		var forward := Vector2(truck.global_basis.z.x, truck.global_basis.z.z).normalized()
-		check(offset.length() >= 15.0 and offset.length() <= 28.0, "The obstacle appears only a short distance ahead")
+		check(offset.length() >= 10.5 and offset.length() <= 16.5, "The obstacle appears a few meters ahead of the cab")
 		check(offset.normalized().dot(forward) > 0.65, "The obstacle appears in front of the moving truck")
 	prank._remove_pole()
 	prank.spawned_count = 0
