@@ -33,7 +33,13 @@ func run_checks() -> void:
 	var rules = scene.get_node("TrafficRules")
 	check(Rules.speed_limit_at(Vector2(0, -200)) == 50, "Southern road is a 50 zone")
 	check(Rules.speed_limit_at(Vector2(0, 33)) == 30, "Depot road is a 30 zone")
-	check(rules.checkpoints.size() >= 8, "Speed, stop and priority checkpoints exist")
+	check(rules.checkpoints.size() >= 13, "Speed, stop and priority checkpoints exist")
+	var cameras := rules.get_children().filter(func(node: Node) -> bool: return node.name.begins_with("SpeedCamera"))
+	check(cameras.size() == 8, "Visible speed cameras cover the main roads")
+	for fixture in cameras:
+		check(fixture.has_node("YellowHousing") and fixture.has_node("DarkCameraFace") and fixture.has_node("CameraSign"),
+			"Speed camera has a visible yellow body, lenses and sign")
+		check(fixture.get_node("CameraSign").text.begins_with("FLITS"), "Speed camera is clearly labeled")
 	var camera: Dictionary = rules.checkpoints[0]
 	var start: Vector2 = camera.point - camera.direction * 2.0
 	var finish: Vector2 = camera.point + camera.direction * 2.0
@@ -53,7 +59,7 @@ func run_checks() -> void:
 	rules.previous_front = camera.point - camera.direction * 1.0
 	rules._physics_process(0.02)
 	check(score.traffic_fines == 2, "Speed camera fines a truck above its posted limit")
-	var stop: Dictionary = rules.checkpoints[3]
+	var stop: Dictionary = rules.checkpoints[8]
 	truck.global_basis = Basis.looking_at(Vector3(stop.direction.x, 0, stop.direction.y), Vector3.UP, true)
 	front_target = stop.point + stop.direction * 1.0
 	truck.global_position = Vector3(front_target.x, 0, front_target.y) - truck.global_basis * Rules.FRONT_LOCAL
@@ -61,7 +67,7 @@ func run_checks() -> void:
 	rules.previous_front = stop.point - stop.direction * 1.0
 	rules._physics_process(0.02)
 	check(score.traffic_fines == 3, "Rolling through a stop sign adds a fine")
-	var priority: Dictionary = rules.checkpoints[6]
+	var priority: Dictionary = rules.checkpoints[11]
 	var car: Dictionary = scene.get_node("AmbientTraffic").cars[0]
 	car.body.global_position = Vector3(priority.junction.x, 0, priority.junction.y)
 	car.speed = 4.0

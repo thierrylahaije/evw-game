@@ -23,9 +23,14 @@ func _ready() -> void:
 	var front := truck.to_global(FRONT_LOCAL)
 	previous_front = Vector2(front.x, front.z)
 	# The southern logistics roads allow 50; streets through the depot allow 30.
+	_add_checkpoint("speed", Vector2(-112, -203.35), Vector2(-1, 0), 50)
+	_add_checkpoint("speed", Vector2(72, -196.65), Vector2(1, 0), 50)
 	_add_checkpoint("speed", Vector2(270, -196.65), Vector2(1, 0), 50)
 	_add_checkpoint("speed", Vector2(423.35, -245), Vector2(0, -1), 50)
+	_add_checkpoint("speed", Vector2(-316.65, 20), Vector2(0, -1), 30)
 	_add_checkpoint("speed", Vector2(-270, 30), Vector2(-1, 0), 30)
+	_add_checkpoint("speed", Vector2(137.68, 90), Vector2(0, 1), 30)
+	_add_checkpoint("speed", Vector2(-95, 296.65), Vector2(-1, 0), 30)
 	_add_checkpoint("stop", Vector2(-32.6, -185), Vector2(0, -1), 0)
 	_add_checkpoint("stop", Vector2(-110, 181), Vector2(0, -1), 0)
 	_add_checkpoint("stop", Vector2(-250, 321), Vector2(0, -1), 0)
@@ -123,7 +128,48 @@ func _add_checkpoint(kind: String, point: Vector2, direction: Vector2, limit: in
 		"last": -INF, "stopped": false})
 	var right := Vector2(-direction.y, direction.x)
 	var verge := point + right * 5.5
-	_make_sign(kind, verge, limit)
+	if kind == "speed":
+		_make_camera(verge, direction, limit)
+	else:
+		_make_sign(kind, verge, limit)
+
+func _camera_part(parent: Node3D, name: String, size: Vector3, position: Vector3, color: Color) -> MeshInstance3D:
+	var part := MeshInstance3D.new()
+	part.name = name
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	part.mesh = mesh
+	part.position = position
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.metallic = 0.25
+	part.material_override = material
+	parent.add_child(part)
+	return part
+
+func _make_camera(at: Vector2, direction: Vector2, limit: int) -> void:
+	var fixture := Node3D.new()
+	fixture.name = "SpeedCamera_%02d" % checkpoints.size()
+	fixture.position = Vector3(at.x, 0, at.y)
+	# The lenses face approaching traffic. The bright housing is also visible from behind.
+	fixture.basis = Basis.looking_at(Vector3(-direction.x, 0, -direction.y), Vector3.UP)
+	add_child(fixture)
+	_camera_part(fixture, "Mast", Vector3(0.22, 3.3, 0.22), Vector3(0, 1.65, 0), Color("#b5bcc1"))
+	_camera_part(fixture, "YellowHousing", Vector3(1.0, 1.25, 0.68), Vector3(0, 3.25, 0), Color("#f6c32f"))
+	_camera_part(fixture, "DarkCameraFace", Vector3(0.78, 0.83, 0.045), Vector3(0, 3.36, -0.365), Color("#192632"))
+	_camera_part(fixture, "UpperLens", Vector3(0.38, 0.25, 0.05), Vector3(0, 3.58, -0.405), Color("#6bc6e8"))
+	_camera_part(fixture, "LowerFlash", Vector3(0.56, 0.15, 0.05), Vector3(0, 3.13, -0.405), Color("#e9f5fb"))
+	_camera_part(fixture, "ReflectiveStripe", Vector3(1.03, 0.12, 0.7), Vector3(0, 2.77, 0), Color("#fff5b7"))
+	var label := Label3D.new()
+	label.name = "CameraSign"
+	label.text = "FLITS\n%d" % limit
+	label.position = Vector3(0, 4.45, 0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.pixel_size = 0.012
+	label.font_size = 64
+	label.outline_size = 16
+	label.modulate = Color("#fff1ad")
+	fixture.add_child(label)
 
 func _add_zone_signs() -> void:
 	# Both directions at each north/south road make the change of zone explicit.
@@ -133,7 +179,7 @@ func _add_zone_signs() -> void:
 
 func _make_sign(kind: String, at: Vector2, limit: int) -> void:
 	var fixture := Node3D.new()
-	fixture.name = "SpeedCamera" if kind == "speed" else "RoadSign"
+	fixture.name = "RoadSign"
 	fixture.position = Vector3(at.x, 0, at.y)
 	add_child(fixture)
 	var pole := MeshInstance3D.new()
@@ -151,15 +197,5 @@ func _make_sign(kind: String, at: Vector2, limit: int) -> void:
 	face.font_size = 64
 	face.outline_size = 12
 	face.modulate = Color.WHITE
-	face.text = "%d" % limit if kind in ["speed", "limit"] else ("STOP" if kind == "stop" else "VOORRANG")
+	face.text = "%d" % limit if kind == "limit" else ("STOP" if kind == "stop" else "VOORRANG")
 	fixture.add_child(face)
-	if kind == "speed":
-		var box := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(0.65, 0.95, 0.55)
-		box.mesh = mesh
-		box.position.y = 2.5
-		var material := StandardMaterial3D.new()
-		material.albedo_color = Color("#e2bb4d")
-		box.material_override = material
-		fixture.add_child(box)
