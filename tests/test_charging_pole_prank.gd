@@ -71,9 +71,14 @@ func run_checks() -> void:
 	prank._spawn_pole(Vector2(-90, 36.70), Vector2(1, 0))
 	prank._on_vehicle_contact(prank.active_pole)
 	check(prank.active_pole == null, "Trailer impact also clears the obstacle")
-	prank._spawn_pole(Vector2(-80, 36.70), Vector2(1, 0))
-	check(prank.spawned_count == 2, "At most two poles may spawn per round")
-	check(prank.active_pole == null, "A third pole cannot be added")
+	for extra in range(3):
+		prank._spawn_pole(Vector2(-80 + extra * 10, 36.70), Vector2(1, 0))
+		check(is_instance_valid(prank.active_pole), "Pole %d can still spawn" % (extra + 3))
+		prank._remove_pole()
+		await process_frame
+	prank._spawn_pole(Vector2(-40, 36.70), Vector2(1, 0))
+	check(prank.spawned_count == 5, "At most five poles may spawn per round")
+	check(prank.active_pole == null, "A sixth pole cannot be added")
 	check(score.building_hits == 0 and score.car_hits == 0, "Prank impacts do not count as normal damage")
 	check(Session.calculate_score(60.0, score.building_hits, score.car_hits) == before, "Prank leaves the leaderboard score alone")
 	root.remove_child(scene)

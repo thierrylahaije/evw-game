@@ -7,7 +7,7 @@ const ChargingPole = preload("res://scripts/charging_pole.gd")
 const MIN_AHEAD := 60.0
 const MAX_AHEAD := 110.0
 const JUNCTION_CLEARANCE := 18.0
-const MAX_POLES := 2
+const MAX_POLES := 5
 const SPAWN_CHANCE := 0.55
 
 var rng := RandomNumberGenerator.new()
