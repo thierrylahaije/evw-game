@@ -23,6 +23,9 @@ static func set_player_name(value: String) -> bool:
 	player_name = cleaned
 	return true
 
+static func charging_pole_prank_enabled(value: String) -> bool:
+	return value.strip_edges().to_lower().contains("ab")
+
 static func calculate_score(seconds: float, building_hits: int, car_hits: int, red_light_hits: int = 0) -> int:
 	return maxi(0, BASE_SCORE - ceili(seconds) * POINTS_PER_SECOND \
 		- building_hits * BUILDING_PENALTY - car_hits * CAR_PENALTY \

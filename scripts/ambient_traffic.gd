@@ -27,10 +27,12 @@ var signals: Array[Node3D] = []
 var degree: Dictionary = {}
 var truck: VehicleBody3D
 var trailer: RigidBody3D
+var charging_pole_prank: Node3D
 
 func _ready() -> void:
 	truck = get_parent().get_node("TruckModel")
 	trailer = get_parent().get_node("TrailerModel")
+	charging_pole_prank = get_parent().get_node_or_null("ChargingPolePrank")
 	for child in get_parent().get_node("MapExpansion/StreetFurniture").get_children():
 		if child.name.begins_with("TrafficSignal_"):
 			signals.append(child)
@@ -192,6 +194,13 @@ func _blocked_by_vehicle(car: Dictionary) -> bool:
 		if other == car: continue
 		var p: Vector3 = other.body.global_position
 		obstacles.append(Vector2(p.x,p.z))
+	if charging_pole_prank != null:
+		var pole: Node3D = charging_pole_prank.get("active_pole") as Node3D
+		if is_instance_valid(pole):
+			var pole_offset := Vector2(pole.global_position.x,pole.global_position.z)-point
+			if pole_offset.dot(forward) > 0.0 and pole_offset.dot(forward) < 16.0 \
+				and absf(pole_offset.cross(forward)) < 3.2:
+				return true
 	for obstacle in obstacles:
 		var offset := obstacle-point
 		var ahead := offset.dot(forward)

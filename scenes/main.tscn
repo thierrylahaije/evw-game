@@ -23,6 +23,7 @@
 [ext_resource type="Script" uid="uid://dnc0tqf01dicx" path="res://scripts/round_score.gd" id="103_round_score"]
 [ext_resource type="Script" uid="uid://csstgenqpkapa" path="res://scripts/pause_menu.gd" id="104_pause_menu"]
 [ext_resource type="Script" path="res://scripts/mobile_controls.gd" id="105_mobile_controls"]
+[ext_resource type="Script" path="res://scripts/charging_pole_prank.gd" id="106_charging_pole_prank"]
 
 [sub_resource type="BoxShape3D" id="GroundBox"]
 size = Vector3(1600, 1, 1600)
@@ -371,6 +372,9 @@ script = ExtResource("101_ambient")
 
 [node name="RoundScore" type="Node" parent="." unique_id=1548443547]
 script = ExtResource("103_round_score")
+
+[node name="ChargingPolePrank" type="Node3D" parent="."]
+script = ExtResource("106_charging_pole_prank")
 
 [node name="PauseMenu" type="CanvasLayer" parent="." unique_id=535608609]
 script = ExtResource("104_pause_menu")
